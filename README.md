@@ -53,14 +53,14 @@ codex mcp add android-tool -- node "C:\WorkSpace\Work\Agent\Plugins\android-tool
 别人安装：
 
 ```powershell
-codex plugin marketplace add <owner>/<repo>
+codex plugin marketplace add TouMingQAQ/codex-desktop-android-tool
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
 也可以给完整 URL、指定分支：
 
 ```powershell
-codex plugin marketplace add https://github.com/<owner>/<repo> --ref main
+codex plugin marketplace add https://github.com/TouMingQAQ/codex-desktop-android-tool --ref main
 ```
 
 更新已安装的插件：
@@ -116,6 +116,7 @@ node --test "..\..\..\DSH\dsh-android-tool\test\*.test.js"   # 复用原插件�
 
 ```text
 codex-desktop-android-tool/
+├─ .agents/plugins/marketplace.json  # 仓库根 marketplace 清单（source: "."）
 ├─ .codex-plugin/plugin.json   # Codex 插件清单
 ├─ mcp.json                    # 声明 stdio MCP server
 ├─ server.mjs                  # MCP 入口，注册 5 个工具
