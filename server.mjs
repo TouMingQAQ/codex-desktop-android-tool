@@ -10,7 +10,7 @@
  * - 截图以 MCP image content 返回（base64 PNG）。
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,7 +22,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.1'
+const SERVER_VERSION = '0.2.2'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -91,11 +91,86 @@ function loadRawConfig() {
   return merged
 }
 
+let runtimeRawConfig = {}
+let runtimeConfig = {}
+
+const PANEL_CONFIG_FIELDS = [
+  'adbPath',
+  'scrcpyPath',
+  'wirelessHost',
+  'wirelessPort',
+  'pairingPort',
+  'autoConnect',
+  'videoMaxSize',
+  'videoBitRate',
+  'videoFps',
+  'previewFps',
+  'adbTimeoutMs',
+  'dataDir',
+  'workspaceDir',
+]
+
+function reloadRuntimeConfig() {
+  runtimeRawConfig = loadRawConfig()
+  runtimeConfig = snapshotConfig(runtimeRawConfig)
+  return runtimeConfig
+}
+
+function configFilePath() {
+  const explicit = String(process.env.CODEX_ANDROID_CONFIG ?? '').trim()
+  if (explicit.length > 0) return explicit
+  return join(homedir(), '.codex-android-tool', 'config.json')
+}
+
+function panelConfigView() {
+  const config = {}
+  for (const key of PANEL_CONFIG_FIELDS) config[key] = runtimeConfig[key]
+  const envOverrides = Object.keys(ENV_MAP).filter((name) => {
+    const value = process.env[name]
+    return value !== undefined && value !== ''
+  })
+  return {
+    ok: true,
+    config,
+    configPath: configFilePath(),
+    envOverrides,
+    note: '设置保存在用户配置文件；环境变量优先级最高，会覆盖同名项。',
+  }
+}
+
+function savePanelConfig(patch) {
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { ok: false, error: 'config 必须是对象' }
+  }
+  const filePath = configFilePath()
+  let existing = {}
+  if (existsSync(filePath)) {
+    const parsed = readConfigFile(filePath)
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) existing = parsed
+  }
+  const merged = { ...existing }
+  for (const key of PANEL_CONFIG_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(patch, key)) continue
+    const value = patch[key]
+    if (value === undefined) continue
+    if (value === null || value === '') {
+      delete merged[key]
+      continue
+    }
+    merged[key] = value
+  }
+  try {
+    mkdirSync(dirname(filePath), { recursive: true })
+    writeFileSync(filePath, JSON.stringify(merged, null, 2) + '\n', 'utf8')
+  } catch (error) {
+    return { ok: false, error: `写入配置失败：${error instanceof Error ? error.message : String(error)}` }
+  }
+  reloadRuntimeConfig()
+  return panelConfigView()
+}
+
 function createService() {
-  const raw = loadRawConfig()
-  const config = snapshotConfig(raw)
-  const dataDir = String(raw.dataDir ?? process.env.CODEX_ANDROID_DATA_DIR ?? '').trim()
-  const workspaceDir = String(raw.workspaceDir ?? '').trim()
+  reloadRuntimeConfig()
 
   const logger = {
     info: (message) => process.stderr.write(`[${SERVER_NAME}] ${message}\n`),
@@ -105,8 +180,9 @@ function createService() {
 
   const ctx = {
     get(name) {
-      if (name === 'workingDirectory' && workspaceDir.length > 0) {
-        return { defaultDirectory: workspaceDir }
+      if (name === 'workingDirectory') {
+        const workspaceDir = String(runtimeRawConfig.workspaceDir ?? '').trim()
+        if (workspaceDir.length > 0) return { defaultDirectory: workspaceDir }
       }
       return undefined
     },
@@ -114,9 +190,12 @@ function createService() {
 
   return new AndroidService({
     ctx,
-    getConfig: () => config,
+    getConfig: () => runtimeConfig,
     pluginRoot: ROOT,
-    getProfileDir: () => dataDir || join(homedir(), '.codex-android-tool'),
+    getProfileDir: () => {
+      const dataDir = String(runtimeRawConfig.dataDir ?? process.env.CODEX_ANDROID_DATA_DIR ?? '').trim()
+      return dataDir || join(homedir(), '.codex-android-tool')
+    },
     logger,
   })
 }
@@ -187,15 +266,40 @@ const panelToolDef = {
   description: [
     'Backend for the right-side "安卓设备" panel. Not for general model use.',
     'action=state returns device list / selected device / stream status; action=select saves the chosen serial;',
-    'action=refreshDevices rescans adb devices. Use android_view / android_control for screenshot and input.',
+    'action=refreshDevices rescans adb devices; action=getConfig / saveConfig read and write the panel settings.',
+    'Use android_view / android_control for screenshot and input.',
   ].join(' '),
   parameters: {
     type: 'object',
     additionalProperties: false,
     required: ['action'],
     properties: {
-      action: { type: 'string', enum: ['state', 'select', 'refreshDevices'], description: 'Panel operation.' },
+      action: {
+        type: 'string',
+        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig'],
+        description: 'Panel operation.',
+      },
       serial: { type: 'string', description: 'Device serial for action=select.' },
+      config: {
+        type: 'object',
+        additionalProperties: false,
+        description: 'Settings patch for action=saveConfig. Empty string clears a field.',
+        properties: {
+          adbPath: { type: 'string' },
+          scrcpyPath: { type: 'string' },
+          wirelessHost: { type: 'string' },
+          wirelessPort: { type: 'integer' },
+          pairingPort: { type: 'integer' },
+          autoConnect: { type: 'boolean' },
+          videoMaxSize: { type: 'integer' },
+          videoBitRate: { type: 'integer' },
+          videoFps: { type: 'integer' },
+          previewFps: { type: 'integer' },
+          adbTimeoutMs: { type: 'integer' },
+          dataDir: { type: 'string' },
+          workspaceDir: { type: 'string' },
+        },
+      },
     },
   },
   _meta: PANEL_TOOL_META,
@@ -372,6 +476,8 @@ const handlers = {
       return toolResult(await service.humanCommand({ action: 'select', serial: args.serial }))
     }
     if (action === 'refreshDevices') return toolResult(await service.humanCommand({ action: 'refreshDevices' }))
+    if (action === 'getConfig') return toolResult(panelConfigView())
+    if (action === 'saveConfig') return toolResult(await savePanelConfig(args.config ?? {}))
     return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
   },
 }

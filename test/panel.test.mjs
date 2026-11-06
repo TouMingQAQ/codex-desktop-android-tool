@@ -10,6 +10,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,11 +19,12 @@ import { clamp, containRect, mapContainPoint, isTap, clampDevicePoint } from '..
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 
-function startServer() {
+function startServer(extraEnv = {}) {
   const child = spawn(process.execPath, [join(root, 'server.mjs')], {
     cwd: root,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
+    env: { ...process.env, ...extraEnv },
   })
   const pending = new Map()
   const rl = createInterface({ input: child.stdout, crlfDelay: Infinity })
@@ -76,6 +79,8 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.equal(panel._meta.ui.resourceUri, 'ui://android-tool/panel.html')
     assert.deepEqual(panel._meta['openai/ui'].entrypoints, [{ type: 'thread' }])
     assert.equal(panel._meta['openai/ui'].preferredModelDisplayMode, 'inline')
+    assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
+    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
     assert.ok(!/pushed to the right-side/i.test(view.description), 'android_view 不应再宣称自动推送到面板')
@@ -147,6 +152,45 @@ test('android_panel state 返回设备列表结构', async () => {
     assert.ok(payload.stream && typeof payload.stream === 'object')
   } finally {
     srv.stop()
+  }
+})
+
+test('android_panel getConfig / saveConfig 写入用户配置并热更新', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'android-tool-config-'))
+  const configPath = join(dir, 'config.json')
+  const srv = startServer({ CODEX_ANDROID_CONFIG: configPath })
+  try {
+    await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })
+
+    const got = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'getConfig' } }, 20000)
+    const gotPayload = JSON.parse(got.content[0].text)
+    assert.equal(gotPayload.ok, true)
+    assert.equal(gotPayload.configPath, configPath)
+    assert.equal(typeof gotPayload.config, 'object')
+
+    const saved = await srv.request('tools/call', {
+      name: 'android_panel',
+      arguments: {
+        action: 'saveConfig',
+        config: { wirelessPort: 6000, videoMaxSize: 800, autoConnect: true, adbPath: '', dataDir: '' },
+      },
+    }, 20000)
+    const savedPayload = JSON.parse(saved.content[0].text)
+    assert.equal(savedPayload.ok, true)
+    assert.equal(savedPayload.config.wirelessPort, 6000)
+    assert.equal(savedPayload.config.videoMaxSize, 800)
+    assert.equal(savedPayload.config.autoConnect, true)
+
+    assert.ok(existsSync(configPath))
+    const written = JSON.parse(readFileSync(configPath, 'utf8'))
+    assert.equal(written.wirelessPort, 6000)
+    assert.equal(written.videoMaxSize, 800)
+    assert.equal(written.autoConnect, true)
+    assert.equal(Object.prototype.hasOwnProperty.call(written, 'adbPath'), false)
+    assert.equal(Object.prototype.hasOwnProperty.call(written, 'dataDir'), false)
+  } finally {
+    srv.stop()
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 
