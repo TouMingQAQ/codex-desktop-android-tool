@@ -22,7 +22,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.1.0'
+const SERVER_VERSION = '0.2.1'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -124,7 +124,84 @@ function createService() {
 // ── 工具 ────────────────────────────────────────────────────────────────────
 
 const service = createService()
-const toolDefs = buildTools({ service })
+const baseToolDefs = buildTools({ service })
+
+// ── MCP Apps（右侧「安卓设备」面板）─────────────────────────────────────────
+// 面板 HTML 通过 MCP resource 交给宿主，在宿主 sandbox iframe 里运行；
+// 所有设备操作走宿主转发的 tools/call，不开放本地 HTTP / WebSocket，避免额外攻击面。
+const PANEL_TOOL_NAME = 'android_panel'
+const UI_RESOURCE_URI = 'ui://android-tool/panel.html'
+const UI_RESOURCE_MIME = 'text/html;profile=mcp-app'
+const UI_PANEL_TEMPLATE = join(ROOT, 'ui', 'panel.template.html')
+const UI_PANEL_MATH = join(ROOT, 'ui', 'panel-math.mjs')
+
+const PANEL_TOOL_META = {
+  ui: { resourceUri: UI_RESOURCE_URI },
+  // Codex 桌面端会读取这个 entrypoint：type=thread 让面板出现在对话右侧的标签栏里。
+  'openai/ui': {
+    entrypoints: [{ type: 'thread' }],
+    preferredModelDisplayMode: 'inline',
+  },
+}
+
+const PANEL_RESOURCE_META = {
+  'openai/ui': {
+    availableDisplayModes: ['inline', 'fullscreen'],
+    preferredDisplayMode: 'inline',
+  },
+  ui: {
+    csp: {
+      connectDomains: [],
+      resourceDomains: [],
+      frameDomains: [],
+      baseUriDomains: [],
+    },
+    prefersBorder: false,
+  },
+  'openai/widgetHeightHint': 640,
+  'openai/widgetMinFrameHeight': 240,
+}
+
+const PANEL_RESOURCE = {
+  uri: UI_RESOURCE_URI,
+  name: '安卓设备面板',
+  title: '安卓设备',
+  description: '列出并选择已连接的 Android 设备，查看截图，发送点击/滑动/返回/Home。',
+  mimeType: UI_RESOURCE_MIME,
+  _meta: PANEL_RESOURCE_META,
+}
+
+let panelHtmlCache
+function renderPanelHtml() {
+  if (panelHtmlCache !== undefined) return panelHtmlCache
+  const template = readFileSync(UI_PANEL_TEMPLATE, 'utf8')
+  // 面板里的坐标映射与 node:test 共用同一份源码：去掉 ESM 的 export，注入到普通 <script>。
+  const math = readFileSync(UI_PANEL_MATH, 'utf8').replace(/\bexport\s+/g, '')
+  panelHtmlCache = template.replace('/*__PANEL_MATH__*/', () => math)
+  return panelHtmlCache
+}
+
+const panelToolDef = {
+  name: PANEL_TOOL_NAME,
+  title: '安卓设备',
+  description: [
+    'Backend for the right-side "安卓设备" panel. Not for general model use.',
+    'action=state returns device list / selected device / stream status; action=select saves the chosen serial;',
+    'action=refreshDevices rescans adb devices. Use android_view / android_control for screenshot and input.',
+  ].join(' '),
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['action'],
+    properties: {
+      action: { type: 'string', enum: ['state', 'select', 'refreshDevices'], description: 'Panel operation.' },
+      serial: { type: 'string', description: 'Device serial for action=select.' },
+    },
+  },
+  _meta: PANEL_TOOL_META,
+}
+
+const toolDefs = [...baseToolDefs, panelToolDef]
 const toolByName = new Map(toolDefs.map((tool) => [tool.name, tool]))
 
 /** 递归转成可安全 JSON 化的值：丢 undefined / Buffer / 函数，NaN→null。 */
@@ -287,6 +364,16 @@ const handlers = {
     }
     return toolResult(await service.aab2apk.convert(overrides))
   },
+
+  async android_panel(args = {}) {
+    const action = String(args.action ?? '').trim() || 'state'
+    if (action === 'state') return toolResult(await service.uiState())
+    if (action === 'select') {
+      return toolResult(await service.humanCommand({ action: 'select', serial: args.serial }))
+    }
+    if (action === 'refreshDevices') return toolResult(await service.humanCommand({ action: 'refreshDevices' }))
+    return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
+  },
 }
 
 function stripUndefined(value) {
@@ -300,10 +387,19 @@ function stripUndefined(value) {
   return out
 }
 
+const TOOL_DESCRIPTION_OVERRIDES = {
+  android_view:
+    'Capture the current screen of the selected Android device and return it as an image so you can see it. ' +
+    'Use it before/after any control action. Returns serial, model, current package/activity, width/height, capture time, and the image itself. ' +
+    '(In Codex the Android panel is opened from the plugin view, not pushed automatically.)',
+}
+
 const tools = toolDefs.map((tool) => ({
   name: tool.name,
-  description: tool.description,
+  ...(tool.title === undefined ? {} : { title: tool.title }),
+  description: TOOL_DESCRIPTION_OVERRIDES[tool.name] ?? tool.description,
   inputSchema: tool.parameters,
+  ...(tool._meta === undefined ? {} : { _meta: tool._meta }),
 }))
 
 // ── MCP / JSON-RPC ──────────────────────────────────────────────────────────
@@ -334,7 +430,7 @@ async function handle(message) {
     const requested = params?.protocolVersion
     sendResult(id, {
       protocolVersion: typeof requested === 'string' && requested.length > 0 ? requested : DEFAULT_PROTOCOL_VERSION,
-      capabilities: { tools: {}, resources: {} },
+      capabilities: { tools: {}, resources: { subscribe: false, listChanged: false } },
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
       instructions: SERVER_INSTRUCTIONS,
     })
@@ -372,7 +468,35 @@ async function handle(message) {
   }
 
   if (method === 'resources/list') {
-    sendResult(id, { resources: [] })
+    sendResult(id, { resources: [PANEL_RESOURCE] })
+    return
+  }
+
+  if (method === 'resources/templates/list') {
+    sendResult(id, { resourceTemplates: [] })
+    return
+  }
+
+  if (method === 'resources/read') {
+    const uri = String(params?.uri ?? '')
+    if (uri !== UI_RESOURCE_URI) {
+      sendError(id, -32602, `Unknown resource: ${uri}`)
+      return
+    }
+    try {
+      sendResult(id, {
+        contents: [
+          {
+            uri: UI_RESOURCE_URI,
+            mimeType: UI_RESOURCE_MIME,
+            text: renderPanelHtml(),
+            _meta: PANEL_RESOURCE_META,
+          },
+        ],
+      })
+    } catch (error) {
+      sendError(id, -32603, `读取面板资源失败：${error instanceof Error ? error.message : String(error)}`)
+    }
     return
   }
 

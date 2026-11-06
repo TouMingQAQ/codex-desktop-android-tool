@@ -52,7 +52,11 @@ try {
 
   const list = await request(2, 'tools/list', {})
   console.log('tools:', list.tools.map((tool) => tool.name).join(', '))
-  if (list.tools.length !== 5) throw new Error(`expected 5 tools, got ${list.tools.length}`)
+  const names = list.tools.map((tool) => tool.name)
+  for (const name of ['android_view', 'android_state', 'android_control', 'android_adb', 'android_aab2apk']) {
+    if (!names.includes(name)) throw new Error(`missing original tool ${name}`)
+  }
+  if (!names.includes('android_panel')) throw new Error('missing android_panel tool')
 
   const state = await request(3, 'tools/call', { name: 'android_state', arguments: {} })
   console.log('android_state isError:', state.isError)

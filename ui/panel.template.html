@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>安卓设备</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f7;
+    --panel: #ffffff;
+    --line: #dfe3e6;
+    --text: #1c1f21;
+    --muted: #6b737a;
+    --accent: #0f7b57;
+    --danger: #b3261e;
+    --warn: #8a5a00;
+    --btn: #ffffff;
+    --btn-line: #c9d0d5;
+    --btn-hover: #eef1f3;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  html[data-theme="dark"] {
+    --bg: #16191b;
+    --panel: #1e2225;
+    --line: #32383d;
+    --text: #e8ecef;
+    --muted: #9aa4ad;
+    --accent: #4fd1a5;
+    --danger: #ff8a80;
+    --warn: #e0b45a;
+    --btn: #262b2f;
+    --btn-line: #3d444a;
+    --btn-hover: #30363b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+  #app { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  header.bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .title strong { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .mode { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--accent); }
+  .dot.bad { background: var(--danger); }
+  .dot.warn { background: var(--warn); }
+  .spacer { flex: 1 1 auto; }
+  button {
+    font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--btn-line);
+    border-radius: 6px; padding: 4px 9px; cursor: pointer; box-shadow: var(--shadow);
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--btn-hover); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  select {
+    font: inherit; color: var(--text); background: var(--btn); border: 1px solid var(--btn-line);
+    border-radius: 6px; padding: 4px 6px; max-width: 100%; min-width: 0;
+  }
+  .devicebar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .devicebar label { color: var(--muted); font-size: 12px; }
+  #deviceSelect { flex: 1 1 180px; }
+  .muted { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .banner {
+    margin: 6px 10px 0; padding: 6px 9px; border-radius: 7px; font-size: 12px;
+    border: 1px solid var(--btn-line); background: var(--panel); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .banner[data-kind="error"] { border-color: color-mix(in srgb, var(--danger) 45%, var(--btn-line)); color: var(--danger); }
+  .banner[data-kind="warn"] { border-color: color-mix(in srgb, var(--warn) 45%, var(--btn-line)); color: var(--warn); }
+  .banner[data-kind="info"] { color: var(--muted); }
+  .banner .banner-text { flex: 1 1 160px; }
+  main.screen {
+    flex: 1 1 auto; min-height: 0; padding: 8px 10px; display: flex; align-items: stretch; justify-content: stretch;
+  }
+  .shot-wrap {
+    position: relative; flex: 1 1 auto; min-height: 0; min-width: 0;
+    background: #0b0d0e; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #shot {
+    width: 100%; height: 100%; object-fit: contain; display: none;
+    touch-action: none; user-select: none; -webkit-user-drag: none; cursor: crosshair;
+  }
+  #shot.ready { display: block; }
+  .shot-hint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #aeb7bd; font-size: 12px; text-align: center; padding: 16px; pointer-events: none;
+  }
+  .shot-hint[hidden] { display: none; }
+  footer.toolbar {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 7px 10px; background: var(--panel); border-top: 1px solid var(--line);
+  }
+  .status { color: var(--muted); font-size: 11px; flex: 1 1 120px; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dragline { position: absolute; height: 2px; background: var(--accent); opacity: 0.8; transform-origin: 0 50%; pointer-events: none; display: none; }
+  @media (max-width: 420px) {
+    .mode { display: none; }
+    footer.toolbar button { flex: 1 1 auto; }
+    .status { text-align: left; flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <div class="title">
+      <span id="connDot" class="dot"></span>
+      <strong>安卓设备</strong>
+      <span class="mode">截图模式 · 非实时视频</span>
+    </div>
+    <span class="spacer"></span>
+    <button id="btnRefreshDevices" type="button" title="重新扫描 adb 设备">刷新设备</button>
+    <button id="btnShot" type="button" title="重新抓取当前画面" disabled>刷新画面</button>
+  </header>
+
+  <section class="devicebar">
+    <label for="deviceSelect">设备</label>
+    <select id="deviceSelect" aria-label="选择安卓设备">
+      <option value="">未检测到设备</option>
+    </select>
+    <span id="deviceMeta" class="muted"></span>
+  </section>
+
+  <div id="banner" class="banner" data-kind="info" hidden>
+    <span id="bannerText" class="banner-text"></span>
+    <button id="bannerAction" type="button" hidden></button>
+  </div>
+
+  <main class="screen">
+    <div id="shotWrap" class="shot-wrap">
+      <img id="shot" alt="安卓设备画面" draggable="false" />
+      <div id="shotHint" class="shot-hint">正在连接 Codex 宿主…</div>
+      <div id="dragline" class="dragline"></div>
+    </div>
+  </main>
+
+  <footer class="toolbar">
+    <button id="btnBack" type="button" disabled>返回</button>
+    <button id="btnHome" type="button" disabled>Home</button>
+    <button id="btnWake" type="button" disabled>唤醒</button>
+    <span id="status" class="status">未连接</span>
+  </footer>
+</div>
+
+<script>
+/*__PANEL_MATH__*/
+
+(function () {
+  'use strict';
+
+  var HOST_PROTOCOL = '2025-06-18';
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.1' };
+  var RPC_TIMEOUT_MS = 20000;
+
+  var els = {
+    connDot: document.getElementById('connDot'),
+    deviceSelect: document.getElementById('deviceSelect'),
+    deviceMeta: document.getElementById('deviceMeta'),
+    banner: document.getElementById('banner'),
+    bannerText: document.getElementById('bannerText'),
+    bannerAction: document.getElementById('bannerAction'),
+    shot: document.getElementById('shot'),
+    shotHint: document.getElementById('shotHint'),
+    shotWrap: document.getElementById('shotWrap'),
+    dragline: document.getElementById('dragline'),
+    status: document.getElementById('status'),
+    btnRefreshDevices: document.getElementById('btnRefreshDevices'),
+    btnShot: document.getElementById('btnShot'),
+    btnBack: document.getElementById('btnBack'),
+    btnHome: document.getElementById('btnHome'),
+    btnWake: document.getElementById('btnWake'),
+  };
+
+  var state = {
+    initialized: false,
+    devices: [],
+    selectedSerial: '',
+    device: null,
+    deviceError: '',
+    imageWidth: 0,
+    imageHeight: 0,
+    dragging: null,
+    suppressChange: false,
+    refreshTimer: null,
+    shotTimer: null,
+    lastShotAt: 0,
+    busy: false,
+  };
+
+  var pending = new Map();
+  var nextRequestId = 1;
+
+  function post(message) {
+    window.parent.postMessage(message, '*');
+  }
+
+  function logWarn(message) {
+    try { console.warn('[android-panel] ' + message); } catch (_) { /* ignore */ }
+  }
+
+  function rpc(method, params, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var id = nextRequestId++;
+      var timer = setTimeout(function () {
+        pending.delete(id);
+        reject(new Error(method + ' 超时'));
+      }, timeoutMs || RPC_TIMEOUT_MS);
+      pending.set(id, {
+        resolve: function (value) { clearTimeout(timer); resolve(value); },
+        reject: function (error) { clearTimeout(timer); reject(error); },
+      });
+      post({ jsonrpc: '2.0', id: id, method: method, params: params });
+    });
+  }
+
+  function callTool(name, args, timeoutMs) {
+    return rpc('tools/call', { name: name, arguments: args || {} }, timeoutMs).then(function (result) {
+      if (result && result.error) throw new Error(result.error.message || '工具调用失败');
+      return result;
+    });
+  }
+
+  function toolJson(result) {
+    var content = (result && result.content) || (result && result.result && result.result.content) || [];
+    for (var i = 0; i < content.length; i += 1) {
+      if (content[i] && content[i].type === 'text' && typeof content[i].text === 'string') {
+        try { return JSON.parse(content[i].text); } catch (_) { /* keep looking */ }
+      }
+    }
+    return null;
+  }
+
+  function toolText(result) {
+    var content = (result && result.content) || (result && result.result && result.result.content) || [];
+    for (var i = 0; i < content.length; i += 1) {
+      if (content[i] && content[i].type === 'text' && typeof content[i].text === 'string') return content[i].text;
+    }
+    return '';
+  }
+
+  function toolImage(result) {
+    var content = (result && result.content) || (result && result.result && result.result.content) || [];
+    for (var i = 0; i < content.length; i += 1) {
+      var item = content[i];
+      if (!item) continue;
+      if (item.type === 'image' && typeof item.data === 'string') {
+        return { data: item.data, mimeType: item.mimeType || 'image/png' };
+      }
+      if (item.type === 'image_url' && item.image_url && typeof item.image_url.url === 'string') {
+        var url = item.image_url.url;
+        if (url.indexOf('data:') === 0) return { data: url, mimeType: '', dataUrl: true };
+      }
+    }
+    return null;
+  }
+
+  function setConnected(kind, text) {
+    els.connDot.className = 'dot ' + (kind || '');
+    if (text) els.status.textContent = text;
+  }
+
+  function showBanner(message, kind, actionLabel, action) {
+    if (!message) {
+      els.banner.hidden = true;
+      els.bannerAction.hidden = true;
+      return;
+    }
+    els.banner.hidden = false;
+    els.banner.dataset.kind = kind || 'info';
+    els.bannerText.textContent = message;
+    if (actionLabel && typeof action === 'function') {
+      els.bannerAction.hidden = false;
+      els.bannerAction.textContent = actionLabel;
+      els.bannerAction.onclick = action;
+    } else {
+      els.bannerAction.hidden = true;
+      els.bannerAction.onclick = null;
+    }
+  }
+
+  function setBusy(busy) {
+    state.busy = busy;
+    var hasDevice = Boolean(state.selectedSerial);
+    els.btnRefreshDevices.disabled = busy;
+    els.btnShot.disabled = busy || !hasDevice;
+    els.btnBack.disabled = busy || !hasDevice;
+    els.btnHome.disabled = busy || !hasDevice;
+    els.btnWake.disabled = busy || !hasDevice;
+  }
+
+  function hasOnlineDevice() {
+    return state.devices.some(function (device) { return device && device.state === 'device'; });
+  }
+
+  function deviceLabel(device) {
+    var model = (device && device.model) || '';
+    var serial = (device && device.serial) || '';
+    var st = (device && device.state) || '';
+    var name = model ? model : serial;
+    var suffix = model && serial && model !== serial ? ' · ' + serial : '';
+    var stateText = st && st !== 'device' ? ' [' + st + ']' : '';
+    return name + suffix + stateText;
+  }
+
+  function renderDevices() {
+    var select = els.deviceSelect;
+    state.suppressChange = true;
+    while (select.firstChild) select.removeChild(select.firstChild);
+
+    if (!state.devices.length) {
+      var empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = '未检测到设备';
+      select.appendChild(empty);
+      state.selectedSerial = '';
+      state.device = null;
+    } else {
+      state.devices.forEach(function (device) {
+        var option = document.createElement('option');
+        option.value = device.serial || '';
+        option.textContent = deviceLabel(device);
+        option.disabled = device.state !== 'device';
+        select.appendChild(option);
+      });
+      var wanted = state.selectedSerial || '';
+      var exists = state.devices.some(function (device) { return device.serial === wanted; });
+      if (!exists) wanted = '';
+      if (!wanted) {
+        var firstOnline = state.devices.find(function (device) { return device.state === 'device'; });
+        if (firstOnline) wanted = firstOnline.serial;
+      }
+      state.selectedSerial = wanted;
+      select.value = wanted;
+      state.device = state.devices.find(function (device) { return device.serial === wanted; }) || null;
+    }
+    state.suppressChange = false;
+
+    var meta = '';
+    if (state.device) {
+      var d = state.device;
+      meta = [d.serial, d.state, d.product, d.device].filter(Boolean).join(' · ');
+    } else if (state.deviceError) {
+      meta = state.deviceError;
+    }
+    els.deviceMeta.textContent = meta;
+    els.deviceMeta.title = meta;
+    setBusy(state.busy);
+  }
+
+  function describeDeviceProblem() {
+    if (state.devices.length === 0) {
+      return '没有检测到安卓设备。用 USB 连接手机并开启「USB 调试」，或先做无线配对，然后点「刷新设备」。';
+    }
+    var unauthorized = state.devices.filter(function (d) { return d.state === 'unauthorized'; });
+    if (unauthorized.length) {
+      return '设备未授权（' + unauthorized.map(function (d) { return d.serial; }).join(', ') + '）。请在手机上点「允许 USB 调试」后刷新设备。';
+    }
+    var offline = state.devices.filter(function (d) { return d.state === 'offline'; });
+    if (offline.length) {
+      return '设备离线（' + offline.map(function (d) { return d.serial; }).join(', ') + '）。检查数据线，或重新 adb connect / 无线配对。';
+    }
+    if (!hasOnlineDevice()) {
+      return '没有处于在线（device）状态的设备。请检查连接和授权状态。';
+    }
+    if (state.deviceError) return state.deviceError;
+    return '';
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    return d.toLocaleTimeString('zh-CN', { hour12: false });
+  }
+
+  function hideHint(text) {
+    if (!text) {
+      els.shotHint.hidden = true;
+      return;
+    }
+    els.shotHint.hidden = false;
+    els.shotHint.textContent = text;
+  }
+
+  function applyState(payload) {
+    if (!payload || typeof payload !== 'object') return;
+    state.devices = Array.isArray(payload.devices) ? payload.devices : [];
+    if (typeof payload.selectedSerial === 'string') state.selectedSerial = payload.selectedSerial;
+    state.device = payload.device || null;
+    state.deviceError = typeof payload.deviceError === 'string' ? payload.deviceError : '';
+    renderDevices();
+  }
+
+  async function refreshState(options) {
+    var quiet = options && options.quiet;
+    if (!state.initialized) return null;
+    if (!quiet) setBusy(true);
+    try {
+      var result = await callTool('android_panel', { action: 'state' }, 20000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) {
+        var text = toolText(result) || '无法读取设备列表';
+        throw new Error(text);
+      }
+      applyState(payload);
+      var problem = describeDeviceProblem();
+      if (problem) {
+        showBanner(problem, 'warn', '重试', function () { refreshState({ quiet: false }); });
+        setConnected(state.devices.length ? 'warn' : 'bad', '设备不可用');
+        hideHint(problem);
+        els.shot.classList.remove('ready');
+      } else {
+        showBanner('', 'info');
+        setConnected('ok', '设备已连接');
+        if (!state.imageWidth) hideHint('正在读取画面…');
+      }
+      if (state.selectedSerial) {
+        takeScreenshot({ quiet: true });
+      }
+      return payload;
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      showBanner('读取设备状态失败：' + message, 'error', '重试', function () { refreshState({ quiet: false }); });
+      setConnected('bad', '通信失败');
+      hideHint('读取设备状态失败');
+      return null;
+    } finally {
+      if (!quiet) setBusy(false);
+    }
+  }
+
+  async function selectDevice(serial) {
+    if (!state.initialized) return;
+    setBusy(true);
+    try {
+      var result = await callTool('android_panel', { action: 'select', serial: serial || '' }, 15000);
+      var payload = toolJson(result);
+      if (payload && payload.ok === false) throw new Error(payload.error || '选择设备失败');
+      state.selectedSerial = serial || '';
+      state.device = state.devices.find(function (d) { return d.serial === serial; }) || null;
+      showBanner('', 'info');
+      if (state.selectedSerial) await takeScreenshot({ quiet: true });
+    } catch (error) {
+      showBanner('选择设备失败：' + (error && error.message ? error.message : String(error)), 'error');
+      setConnected('bad', '选择失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function takeScreenshot(options) {
+    var quiet = options && options.quiet;
+    if (!state.initialized) return;
+    if (!state.selectedSerial) {
+      hideHint('请先选择设备');
+      return;
+    }
+    if (!quiet) setBusy(true);
+    try {
+      var result = await callTool('android_view', { serial: state.selectedSerial, includeState: true }, 30000);
+      var payload = toolJson(result);
+      if ((result && result.isError) || (payload && payload.ok === false)) {
+        var reason = (payload && payload.error) || toolText(result) || '截图失败';
+        throw new Error(reason);
+      }
+      var image = toolImage(result);
+      if (!image) throw new Error('截图结果里没有图片');
+      if (image.dataUrl) {
+        els.shot.src = image.data;
+      } else {
+        els.shot.src = 'data:' + (image.mimeType || 'image/png') + ';base64,' + image.data;
+      }
+      state.imageWidth = Number(payload && (payload.width || payload.imageWidth)) || state.imageWidth;
+      state.imageHeight = Number(payload && (payload.height || payload.imageHeight)) || state.imageHeight;
+      els.shot.classList.add('ready');
+      hideHint('');
+      state.lastShotAt = Date.now();
+      els.status.textContent = '截图 ' + formatTime(state.lastShotAt) + ' · 非实时';
+      setConnected('ok', '');
+      var problem = describeDeviceProblem();
+      if (problem) showBanner(problem, 'warn', '重试', function () { takeScreenshot({ quiet: false }); });
+      else showBanner('', 'info');
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      state.imageWidth = 0;
+      state.imageHeight = 0;
+      els.shot.classList.remove('ready');
+      els.shot.removeAttribute('src');
+      hideHint('当前无法获取画面：' + message);
+      showBanner('截图失败：' + message + '（可尝试「唤醒」或检查授权/连接）', 'error', '重试', function () { takeScreenshot({ quiet: false }); });
+      setConnected('bad', '截图失败');
+    } finally {
+      if (!quiet) setBusy(false);
+    }
+  }
+
+  async function runControl(args, label) {
+    if (!state.initialized) return;
+    if (!state.selectedSerial) {
+      showBanner('请先选择设备', 'warn');
+      return;
+    }
+    setBusy(true);
+    try {
+      var result = await callTool('android_control', Object.assign({ serial: state.selectedSerial }, args), 30000);
+      var payload = toolJson(result);
+      if ((result && result.isError) || (payload && payload.ok === false)) {
+        throw new Error((payload && payload.error) || toolText(result) || '操作失败');
+      }
+      els.status.textContent = label + ' 已发送';
+      showBanner('', 'info');
+      await new Promise(function (resolve) { setTimeout(resolve, 180); });
+      await takeScreenshot({ quiet: true });
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      showBanner(label + '失败：' + message, 'error');
+      setConnected('bad', '操作失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function pointerDown(event) {
+    if (!state.selectedSerial || !state.imageWidth) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    var point = mapContainPoint({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rect: els.shot.getBoundingClientRect(),
+      imageWidth: state.imageWidth,
+      imageHeight: state.imageHeight,
+    });
+    if (!point) return;
+    state.dragging = { start: { clientX: event.clientX, clientY: event.clientY, x: point.x, y: point.y }, pointerId: event.pointerId };
+    try { els.shot.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+    els.dragline.style.display = 'none';
+  }
+
+  function pointerMove(event) {
+    var drag = state.dragging;
+    if (!drag) return;
+    var dx = event.clientX - drag.start.clientX;
+    var dy = event.clientY - drag.start.clientY;
+    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+    var line = els.dragline;
+    line.style.display = 'block';
+    line.style.left = drag.start.clientX + 'px';
+    line.style.top = drag.start.clientY + 'px';
+    line.style.width = Math.sqrt(dx * dx + dy * dy) + 'px';
+    line.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+    line.style.position = 'fixed';
+  }
+
+  function pointerUp(event) {
+    var drag = state.dragging;
+    state.dragging = null;
+    els.dragline.style.display = 'none';
+    if (!drag) return;
+    try { els.shot.releasePointerCapture(drag.pointerId); } catch (_) { /* ignore */ }
+    var endPoint = mapContainPoint({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rect: els.shot.getBoundingClientRect(),
+      imageWidth: state.imageWidth,
+      imageHeight: state.imageHeight,
+    });
+    if (isTap(drag.start, { clientX: event.clientX, clientY: event.clientY }, 8)) {
+      runControl({ action: 'tap', x: drag.start.x, y: drag.start.y, capture: false }, '点击');
+      return;
+    }
+    if (!endPoint) {
+      showBanner('滑动终点不在画面内，已取消', 'warn');
+      return;
+    }
+    runControl({ action: 'swipe', x: drag.start.x, y: drag.start.y, x2: endPoint.x, y2: endPoint.y, durationMs: 220, capture: false }, '滑动');
+  }
+
+  function pointerCancel() {
+    state.dragging = null;
+    els.dragline.style.display = 'none';
+  }
+
+  function onHostMessage(event) {
+    if (event.source !== window.parent && event.source !== window.top) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== '2.0') return;
+
+    if (message.method === 'ui/notifications/host-context-changed') {
+      var theme = message.params && message.params.theme;
+      if (theme === 'dark' || theme === 'light') {
+        document.documentElement.dataset.theme = theme;
+      }
+      return;
+    }
+
+    if (message.method === 'ui/notifications/tool-result' || message.method === 'ui/notifications/tool-input' || message.method === 'ui/notifications/tool-input-partial') {
+      return;
+    }
+
+    if (message.id !== undefined && pending.has(message.id)) {
+      var waiter = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message || '请求失败'));
+      else waiter.resolve(message.result);
+    }
+  }
+
+  async function startHandshake() {
+    try {
+      // MCP Apps：应用先向宿主发 ui/initialize，宿主回 hostInfo，应用再发 initialized。
+      var result = await rpc('ui/initialize', {
+        protocolVersion: HOST_PROTOCOL,
+        appInfo: APP_INFO,
+        appCapabilities: { tools: {} },
+      }, 4000);
+      state.initialized = true;
+      post({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} });
+      var hostContext = result && result.hostContext;
+      if (hostContext && (hostContext.theme === 'dark' || hostContext.theme === 'light')) {
+        document.documentElement.dataset.theme = hostContext.theme;
+      }
+      setConnected('warn', '已连接宿主，正在读取设备…');
+      hideHint('正在读取设备…');
+      refreshState({ quiet: false });
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      setConnected('bad', '宿主握手失败');
+      hideHint('连接 Codex 宿主失败：' + message);
+      showBanner('连接 Codex 宿主失败：' + message + '。请关闭面板后重试。', 'error');
+    }
+  }
+
+  function cleanup() {
+    if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
+    if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
+    state.dragging = null;
+    pending.forEach(function (waiter) { waiter.reject(new Error('面板已关闭')); });
+    pending.clear();
+  }
+
+  function bind() {
+    els.btnRefreshDevices.addEventListener('click', function () {
+      refreshState({ quiet: false });
+    });
+    els.btnShot.addEventListener('click', function () {
+      takeScreenshot({ quiet: false });
+    });
+    els.btnBack.addEventListener('click', function () {
+      runControl({ action: 'key', key: 'back', capture: false }, '返回');
+    });
+    els.btnHome.addEventListener('click', function () {
+      runControl({ action: 'key', key: 'home', capture: false }, 'Home');
+    });
+    els.btnWake.addEventListener('click', function () {
+      runControl({ action: 'wake', capture: false }, '唤醒');
+    });
+    els.deviceSelect.addEventListener('change', function () {
+      if (state.suppressChange) return;
+      selectDevice(els.deviceSelect.value);
+    });
+    els.shot.addEventListener('pointerdown', pointerDown);
+    els.shot.addEventListener('pointermove', pointerMove);
+    els.shot.addEventListener('pointerup', pointerUp);
+    els.shot.addEventListener('pointercancel', pointerCancel);
+    els.shot.addEventListener('lostpointercapture', pointerCancel);
+
+    window.addEventListener('message', onHostMessage);
+    window.addEventListener('pagehide', cleanup);
+    window.addEventListener('beforeunload', cleanup);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden && state.dragging) pointerCancel();
+    });
+    window.addEventListener('resize', function () {
+      els.dragline.style.display = 'none';
+    });
+  }
+
+  bind();
+
+  if (window.parent === window) {
+    setConnected('', '未连接 Codex 宿主');
+    hideHint('这是开发预览。请从 Codex 桌面端的「安卓设备」右侧面板打开。');
+    showBanner('未连接到 Codex 宿主：当前页面只做静态预览，所有设备操作不可用。', 'info');
+    return;
+  }
+
+  startHandshake();
+
+  setTimeout(function () {
+    if (!state.initialized) {
+      setConnected('bad', '等待宿主超时');
+      hideHint('等待 Codex 宿主初始化超时。请关闭后重新打开「安卓设备」面板。');
+      showBanner('等待 Codex 宿主初始化超时（5 秒）。请重开面板；若仍失败，检查插件是否已在当前 Codex 版本启用 MCP Apps。', 'error');
+    }
+  }, 5000);
+
+  state.refreshTimer = setInterval(function () {
+    if (document.hidden) return;
+    if (!state.initialized) return;
+    refreshState({ quiet: true });
+  }, 5000);
+})();
+</script>
+</body>
+</html>
