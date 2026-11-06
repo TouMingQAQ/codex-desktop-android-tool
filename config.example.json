@@ -1,0 +1,19 @@
+{
+  "adbPath": "",
+  "scrcpyPath": "",
+  "wirelessHost": "",
+  "wirelessPort": 5555,
+  "pairingPort": 0,
+  "autoConnect": false,
+  "videoMaxSize": 720,
+  "videoBitRate": 2500000,
+  "videoFps": 30,
+  "videoEncoder": "",
+  "videoCodecOptions": "",
+  "previewFps": 3,
+  "logcatMaxLines": 5000,
+  "adbTimeoutMs": 15000,
+  "scrcpyExtraArgs": "",
+  "dataDir": "",
+  "workspaceDir": ""
+}

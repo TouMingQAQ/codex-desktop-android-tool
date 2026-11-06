@@ -1,0 +1,14 @@
+{
+  "name": "codex-desktop-android-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Android device control MCP server for ChatGPT desktop / Codex.",
+  "main": "server.mjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@yume-chan/scrcpy": "^3.0.0-beta.4"
+  }
+}

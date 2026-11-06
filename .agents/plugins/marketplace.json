@@ -1,0 +1,11 @@
+{
+  "name": "codex-work-plugins",
+  "interface": { "displayName": "Codex Work Plugins" },
+  "plugins": [
+    {
+      "name": "codex-desktop-android-tool",
+      "source": ".",
+      "category": "Tools"
+    }
+  ]
+}
