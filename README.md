@@ -26,9 +26,11 @@
 
 打开方式：在 Codex 会话里安装并启用本插件后，右侧面板会出现「安卓设备」标签；若没有出现，按下面的故障排查检查功能开关与插件版本。
 
-已实现：设备列表、显式选择、截图与手动刷新、点击、滑动、返回、Home、唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成的桥请求。
+面板标签：**设备 / Logcat / 性能 / AAB→APK**。
 
-未实现（不要当作可用）：实时视频、Logcat、性能、AAB 转换面板。当前画面是**截图刷新**，不是实时视频。
+已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；Logcat 启动/停止/级别过滤/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单。
+
+未实现：实时视频（当前是截图刷新，不是实时视频）。
 
 
 ## 安装
@@ -42,7 +44,7 @@ codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.2`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.3`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 
@@ -172,7 +174,7 @@ codex-desktop-android-tool/
 未验证（需要真实设备/更多环境）：
 
 - 两台真机同时在线时的选择切换、断线/离线/未授权/息屏、横竖屏旋转与四角点击的客户端实测。
-- 实时视频、Logcat、性能、AAB 转换面板尚未实现，面板中不展示为可用。
+- Logcat / 性能采样 / AAB→APK 面板在真实设备与大文件上的端到端实测（工具与前端已接好，自动化测试覆盖配置与协议）。
 - macOS / Linux 客户端未测试（随包 adb 仅 Windows）。
 
 ## 已知限制
@@ -180,5 +182,5 @@ codex-desktop-android-tool/
 - 随包 `adb.exe` 是 Windows 版；macOS / Linux 需要在配置里指定自己的 adb。
 - `android_control` 的 Unicode 输入和手柄摇杆/扳机需要 scrcpy control 通道；当前 `scrcpy-stream.js` 仍会同时开视频，Codex 场景下建议后续加 `video=false` 纯控制模式。
 - 插件安装只拷贝文件，不会执行 `npm install`；本目录已自带 `node_modules`。
-- 右侧面板依赖 Codex 桌面版的 MCP Apps；本版本只做截图刷新，实时视频 / Logcat / 性能 / AAB 转换面板尚未实现。面板不可用时先检查 `enable_mcp_apps` 是否启用、桌面版是否 ≥ 26.1103.3517.0。
+- 右侧面板依赖 Codex 桌面版的 MCP Apps；当前画面仍是截图刷新，实时视频尚未实现。面板不可用时先检查 `enable_mcp_apps` 是否启用、桌面版是否 ≥ 26.1103.3517.0。
 - `android_adb` 能执行任意 adb 命令，建议在 Codex 里把写操作工具设为需审批。

@@ -127,6 +127,40 @@
   .settings-grid input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
   .settings-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
   .settings-actions .muted { flex: 1 1 auto; text-align: right; }
+  .tabbar { display: flex; gap: 4px; padding: 4px 8px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; flex: none; }
+  .tabbar button { border: 0; background: transparent; box-shadow: none; color: var(--muted); padding: 3px 9px; border-radius: 6px; }
+  .tabbar button.active { background: var(--btn-hover); color: var(--text); }
+  .pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .pane[hidden] { display: none; }
+  .pane-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; }
+  .pane-toolbar select { max-width: 90px; }
+  .pane-toolbar .muted { flex: 1 1 auto; text-align: right; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logcat-list {
+    flex: 1 1 auto; min-height: 0; overflow: auto; background: #0f1214; color: #cfd8dd;
+    font: 11px/1.5 Consolas, "Cascadia Mono", monospace; padding: 6px 8px; white-space: pre-wrap; word-break: break-word;
+  }
+  .logcat-line { display: flex; gap: 6px; }
+  .logcat-line .lv { flex: none; width: 12px; font-weight: 700; }
+  .logcat-line .tm { flex: none; color: #7c8b94; }
+  .logcat-line .tag { flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; color: #8fc6e8; }
+  .logcat-line .msg { min-width: 0; }
+  .lv-V { color: #9aa4ad; } .lv-D { color: #79b8ff; } .lv-I { color: #4fd1a5; } .lv-W { color: #e0b45a; } .lv-E { color: #ff8a80; } .lv-F { color: #ff4d6d; }
+  .perf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; padding: 10px; overflow: auto; }
+  .perf-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .perf-card .k { color: var(--muted); font-size: 11px; }
+  .perf-card .v { font-size: 19px; font-weight: 600; margin-top: 2px; }
+  .perf-raw { margin: 0 10px 10px; color: var(--muted); font: 11px/1.5 Consolas, monospace; white-space: pre-wrap; overflow: auto; max-height: 32%; }
+  .form-pane { padding: 10px; overflow: auto; flex: 1 1 auto; min-height: 0; }
+  .form-grid { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 8px 10px; align-items: center; max-width: 560px; }
+  .form-grid label { color: var(--muted); font-size: 12px; }
+  .form-grid input[type="text"], .form-grid input[type="password"] {
+    width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--btn);
+    border: 1px solid var(--btn-line); border-radius: 6px; padding: 4px 7px;
+  }
+  .form-grid input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+  .form-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .form-actions .muted { flex: 1 1 140px; font-size: 11px; }
+  .result-box { margin-top: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 11px/1.5 Consolas, monospace; white-space: pre-wrap; overflow: auto; max-height: 300px; }
   @media (max-width: 380px) { .settings-grid { grid-template-columns: 1fr; } }
   @media (max-width: 420px) {
     .mode { display: none; }
@@ -148,6 +182,15 @@
     <button id="btnRefreshDevices" type="button" title="重新扫描 adb 设备">刷新设备</button>
     <button id="btnShot" type="button" title="重新抓取当前画面" disabled>刷新画面</button>
   </header>
+
+  <nav id="tabBar" class="tabbar" aria-label="面板标签">
+    <button type="button" data-tab="device" class="active">设备</button>
+    <button type="button" data-tab="logcat">Logcat</button>
+    <button type="button" data-tab="perf">性能</button>
+    <button type="button" data-tab="aab">AAB→APK</button>
+  </nav>
+
+  <section id="paneDevice" class="pane active">
 
   <section class="devicebar">
     <label for="deviceSelect">设备</label>
@@ -176,6 +219,56 @@
     <button id="btnWake" type="button" disabled>唤醒</button>
     <span id="status" class="status">未连接</span>
   </footer>
+  </section>
+
+  <section id="paneLogcat" class="pane" hidden>
+    <div class="pane-toolbar">
+      <button id="btnLogcatStart" type="button">启动</button>
+      <button id="btnLogcatStop" type="button">停止</button>
+      <button id="btnLogcatRefresh" type="button">刷新</button>
+      <button id="btnLogcatExport" type="button">导出</button>
+      <select id="logcatLevel" aria-label="Logcat 级别">
+        <option value="V">V</option><option value="D">D</option><option value="I">I</option>
+        <option value="W">W</option><option value="E">E</option><option value="F">F</option>
+      </select>
+      <span id="logcatStatus" class="muted">未启动</span>
+    </div>
+    <div id="logcatList" class="logcat-list">Logcat 未启动。</div>
+  </section>
+
+  <section id="panePerf" class="pane" hidden>
+    <div class="pane-toolbar">
+      <button id="btnPerfRefresh" type="button">刷新</button>
+      <label style="display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px">
+        <input id="perfAuto" type="checkbox" checked /> 自动刷新
+      </label>
+      <span id="perfStatus" class="muted">等待采样</span>
+    </div>
+    <div id="perfGrid" class="perf-grid"></div>
+    <pre id="perfRaw" class="perf-raw"></pre>
+  </section>
+
+  <section id="paneAab" class="pane" hidden>
+    <div class="form-pane">
+      <div class="form-grid">
+        <label for="aabPath">AAB 路径</label><input id="aabPath" type="text" placeholder="绝对路径 .aab" />
+        <label for="aabOutputDir">输出目录</label><input id="aabOutputDir" type="text" placeholder="留空 = 工作目录" />
+        <label for="aabOutputName">输出名称</label><input id="aabOutputName" type="text" placeholder="留空 = 按 AAB 文件名" />
+        <label for="aabKeystorePath">Keystore</label><input id="aabKeystorePath" type="text" placeholder=".jks / .keystore / .p12" />
+        <label for="aabKeystorePassword">Keystore 密码</label><input id="aabKeystorePassword" type="password" />
+        <label for="aabKeyAlias">Key alias</label><input id="aabKeyAlias" type="text" />
+        <label for="aabKeyPassword">Key 密码</label><input id="aabKeyPassword" type="password" placeholder="留空 = 同 Keystore 密码" />
+        <label for="aabOverwrite">覆盖输出</label><input id="aabOverwrite" type="checkbox" checked />
+        <label for="aabAlign">zipalign</label><input id="aabAlign" type="checkbox" checked />
+        <label for="aabVerify">签名校验</label><input id="aabVerify" type="checkbox" checked />
+      </div>
+      <div class="form-actions">
+        <button id="btnAabConvert" type="button">转换</button>
+        <span id="aabStatus" class="muted"></span>
+      </div>
+      <pre id="aabResult" class="result-box" hidden></pre>
+    </div>
+  </section>
 
   <div id="settingsOverlay" class="settings-overlay" hidden>
     <div class="settings-card">
@@ -226,7 +319,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.2' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.3' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -264,6 +357,26 @@
     cfgAdbTimeoutMs: document.getElementById('cfgAdbTimeoutMs'),
     cfgDataDir: document.getElementById('cfgDataDir'),
     cfgWorkspaceDir: document.getElementById('cfgWorkspaceDir'),
+    tabBar: document.getElementById('tabBar'),
+    paneDevice: document.getElementById('paneDevice'),
+    paneLogcat: document.getElementById('paneLogcat'),
+    panePerf: document.getElementById('panePerf'),
+    paneAab: document.getElementById('paneAab'),
+    btnLogcatStart: document.getElementById('btnLogcatStart'),
+    btnLogcatStop: document.getElementById('btnLogcatStop'),
+    btnLogcatRefresh: document.getElementById('btnLogcatRefresh'),
+    btnLogcatExport: document.getElementById('btnLogcatExport'),
+    logcatLevel: document.getElementById('logcatLevel'),
+    logcatStatus: document.getElementById('logcatStatus'),
+    logcatList: document.getElementById('logcatList'),
+    btnPerfRefresh: document.getElementById('btnPerfRefresh'),
+    perfAuto: document.getElementById('perfAuto'),
+    perfStatus: document.getElementById('perfStatus'),
+    perfGrid: document.getElementById('perfGrid'),
+    perfRaw: document.getElementById('perfRaw'),
+    btnAabConvert: document.getElementById('btnAabConvert'),
+    aabStatus: document.getElementById('aabStatus'),
+    aabResult: document.getElementById('aabResult'),
   };
 
   var state = {
@@ -280,6 +393,14 @@
     shotTimer: null,
     lastShotAt: 0,
     busy: false,
+    activeTab: 'device',
+    logcatCursor: 0,
+    logcatTimer: null,
+    logcatRunning: false,
+    logcatBusy: false,
+    perfTimer: null,
+    perfBusy: false,
+    aabBusy: false,
   };
 
   var SETTINGS_FIELDS = [
@@ -703,6 +824,231 @@
     }
   }
 
+  function stopLogcatTimer() {
+    if (state.logcatTimer) { clearInterval(state.logcatTimer); state.logcatTimer = null; }
+  }
+
+  function stopPerfTimer() {
+    if (state.perfTimer) { clearInterval(state.perfTimer); state.perfTimer = null; }
+  }
+
+  function switchTab(tab) {
+    state.activeTab = tab;
+    var panes = { device: els.paneDevice, logcat: els.paneLogcat, perf: els.panePerf, aab: els.paneAab };
+    Object.keys(panes).forEach(function (key) {
+      if (panes[key]) panes[key].hidden = key !== tab;
+    });
+    Array.prototype.forEach.call(els.tabBar.querySelectorAll('button[data-tab]'), function (button) {
+      button.classList.toggle('active', button.getAttribute('data-tab') === tab);
+    });
+    if (tab !== 'logcat') stopLogcatTimer();
+    if (tab !== 'perf') stopPerfTimer();
+    if (tab === 'device' && state.selectedSerial) takeScreenshot({ quiet: true });
+    if (tab === 'logcat') {
+      els.logcatStatus.textContent = state.logcatRunning ? '运行中' : '未启动';
+    }
+    if (tab === 'perf') {
+      refreshPerf();
+    }
+  }
+
+  function ensureLogcatDevice() {
+    if (!state.selectedSerial) {
+      els.logcatStatus.textContent = '请先到「设备」页选择设备';
+      return false;
+    }
+    return true;
+  }
+
+  function appendLogcat(entries, reset) {
+    if (reset) els.logcatList.textContent = '';
+    if (!entries || entries.length === 0) {
+      if (els.logcatList.childNodes.length === 0) els.logcatList.textContent = '暂无日志。';
+      return;
+    }
+    if (els.logcatList.textContent === '暂无日志。') els.logcatList.textContent = '';
+    var fragment = document.createDocumentFragment();
+    entries.forEach(function (entry) {
+      var line = document.createElement('div');
+      line.className = 'logcat-line';
+      var lv = document.createElement('span');
+      lv.className = 'lv lv-' + String(entry.level || 'V');
+      lv.textContent = String(entry.level || 'V');
+      var tm = document.createElement('span');
+      tm.className = 'tm';
+      tm.textContent = [entry.time, entry.pid].filter(Boolean).join(' ');
+      var tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = entry.tag || '';
+      var msg = document.createElement('span');
+      msg.className = 'msg';
+      msg.textContent = entry.msg || entry.raw || '';
+      line.appendChild(lv); line.appendChild(tm); line.appendChild(tag); line.appendChild(msg);
+      fragment.appendChild(line);
+    });
+    els.logcatList.appendChild(fragment);
+    while (els.logcatList.childNodes.length > 1500) els.logcatList.removeChild(els.logcatList.firstChild);
+    els.logcatList.scrollTop = els.logcatList.scrollHeight;
+  }
+
+  async function pollLogcat(reset) {
+    if (!state.initialized || !state.selectedSerial) return;
+    if (state.logcatBusy) return;
+    state.logcatBusy = true;
+    try {
+      var result = await callTool('android_panel', {
+        action: 'logcatRead',
+        serial: state.selectedSerial,
+        cursor: reset ? 0 : state.logcatCursor,
+        limit: 400,
+        level: els.logcatLevel.value,
+      }, 20000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '读取 Logcat 失败');
+      state.logcatCursor = Number(payload.cursor) || 0;
+      state.logcatRunning = payload.running === true;
+      appendLogcat(payload.entries || [], reset);
+      els.logcatStatus.textContent = (state.logcatRunning ? '运行中' : '已停止') + ' · cursor ' + state.logcatCursor + (payload.error ? ' · ' + payload.error : '');
+    } catch (error) {
+      els.logcatStatus.textContent = '读取失败：' + (error && error.message ? error.message : String(error));
+    } finally {
+      state.logcatBusy = false;
+    }
+  }
+
+  async function startLogcat() {
+    if (!ensureLogcatDevice()) return;
+    try {
+      var result = await callTool('android_panel', { action: 'logcatStart', serial: state.selectedSerial }, 20000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动 Logcat 失败');
+      state.logcatRunning = true;
+      state.logcatCursor = 0;
+      appendLogcat([], true);
+      await pollLogcat(true);
+      stopLogcatTimer();
+      state.logcatTimer = setInterval(function () {
+        if (state.activeTab !== 'logcat' || document.hidden) return;
+        pollLogcat(false);
+      }, 1200);
+    } catch (error) {
+      els.logcatStatus.textContent = '启动失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  async function stopLogcat() {
+    stopLogcatTimer();
+    try {
+      await callTool('android_panel', { action: 'logcatStop' }, 15000);
+      state.logcatRunning = false;
+      els.logcatStatus.textContent = '已停止';
+    } catch (error) {
+      els.logcatStatus.textContent = '停止失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  async function exportLogcat() {
+    if (!ensureLogcatDevice()) return;
+    els.logcatStatus.textContent = '导出中…';
+    try {
+      var result = await callTool('android_panel', { action: 'exportLogcat', serial: state.selectedSerial, level: els.logcatLevel.value }, 30000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '导出失败');
+      els.logcatStatus.textContent = '已导出：' + payload.path + ' · ' + payload.lines + ' 行';
+    } catch (error) {
+      els.logcatStatus.textContent = '导出失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  function card(key, value) {
+    var div = document.createElement('div');
+    div.className = 'perf-card';
+    var k = document.createElement('div'); k.className = 'k'; k.textContent = key;
+    var v = document.createElement('div'); v.className = 'v'; v.textContent = value;
+    div.appendChild(k); div.appendChild(v);
+    return div;
+  }
+
+  function renderPerf(payload) {
+    els.perfGrid.textContent = '';
+    if (!payload || payload.ok !== true) {
+      els.perfStatus.textContent = (payload && payload.error) || '采样失败';
+      return;
+    }
+    var cpu = payload.cpu || {};
+    var memory = payload.memory || {};
+    var gpu = payload.gpu || {};
+    var battery = payload.battery || {};
+    els.perfGrid.appendChild(card('CPU 总', cpu.totalPercent === undefined ? '—' : cpu.totalPercent + '%'));
+    els.perfGrid.appendChild(card('CPU 应用', cpu.appPercent === undefined ? '—' : cpu.appPercent + '%'));
+    els.perfGrid.appendChild(card('内存', memory.usedMb === undefined ? '—' : memory.usedMb + ' / ' + memory.totalMb + ' MB'));
+    els.perfGrid.appendChild(card('应用 PSS', memory.appPssMb === undefined ? '—' : memory.appPssMb + ' MB'));
+    els.perfGrid.appendChild(card('GPU', gpu.available ? (gpu.usagePercent === undefined ? '—' : gpu.usagePercent + '%') : '不可读'));
+    els.perfGrid.appendChild(card('电量', battery.level === undefined ? '—' : battery.level + '%'));
+    els.perfGrid.appendChild(card('电池温度', battery.temperatureC === undefined ? '—' : battery.temperatureC + '°C'));
+    els.perfGrid.appendChild(card('充电', battery.status || (battery.charging ? '充电中' : '—')));
+    els.perfStatus.textContent = '采样 ' + formatTime(payload.sampledAt || Date.now()) + (payload.package ? ' · ' + payload.package : '');
+    els.perfRaw.textContent = JSON.stringify(payload, null, 2);
+  }
+
+  async function refreshPerf() {
+    if (!state.initialized || !state.selectedSerial || state.perfBusy) return;
+    state.perfBusy = true;
+    els.perfStatus.textContent = '采样中…';
+    try {
+      var result = await callTool('android_panel', { action: 'perfSample', serial: state.selectedSerial }, 30000);
+      renderPerf(toolJson(result));
+    } catch (error) {
+      els.perfStatus.textContent = '采样失败：' + (error && error.message ? error.message : String(error));
+    } finally {
+      state.perfBusy = false;
+    }
+    stopPerfTimer();
+    if (state.activeTab === 'perf' && els.perfAuto.checked) {
+      state.perfTimer = setInterval(function () {
+        if (state.activeTab !== 'perf' || document.hidden) return;
+        refreshPerf();
+      }, 3000);
+    }
+  }
+
+  async function convertAab() {
+    if (state.aabBusy) return;
+    var fields = {
+      aabPath: document.getElementById('aabPath').value.trim(),
+      outputDir: document.getElementById('aabOutputDir').value.trim(),
+      outputName: document.getElementById('aabOutputName').value.trim(),
+      keystorePath: document.getElementById('aabKeystorePath').value.trim(),
+      keystorePassword: document.getElementById('aabKeystorePassword').value,
+      keyAlias: document.getElementById('aabKeyAlias').value.trim(),
+      keyPassword: document.getElementById('aabKeyPassword').value,
+      overwrite: document.getElementById('aabOverwrite').checked,
+      align: document.getElementById('aabAlign').checked,
+      verify: document.getElementById('aabVerify').checked,
+    };
+    if (!fields.aabPath || !fields.keystorePath || !fields.keystorePassword || !fields.keyAlias) {
+      els.aabStatus.textContent = 'AAB 路径、Keystore、Keystore 密码、Key alias 必填';
+      return;
+    }
+    state.aabBusy = true;
+    els.btnAabConvert.disabled = true;
+    els.aabStatus.textContent = '转换中…大文件可能要几分钟';
+    els.aabResult.hidden = true;
+    try {
+      var result = await callTool('android_aab2apk', fields, 1800000);
+      var payload = toolJson(result);
+      els.aabResult.hidden = false;
+      els.aabResult.textContent = JSON.stringify(payload || { raw: toolText(result) }, null, 2);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || '转换失败');
+      els.aabStatus.textContent = '完成：' + (payload.outputApk || payload.apkPath || payload.outputPath || '已生成 APK');
+    } catch (error) {
+      els.aabStatus.textContent = '转换失败：' + (error && error.message ? error.message : String(error));
+    } finally {
+      state.aabBusy = false;
+      els.btnAabConvert.disabled = false;
+    }
+  }
+
   function pointerDown(event) {
     if (!state.selectedSerial || !state.imageWidth) return;
     if (event.button !== undefined && event.button !== 0) return;
@@ -816,6 +1162,8 @@
   function cleanup() {
     if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
     if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
+    stopLogcatTimer();
+    stopPerfTimer();
     state.dragging = null;
     if (els.settingsOverlay) els.settingsOverlay.hidden = true;
     pending.forEach(function (waiter) { waiter.reject(new Error('面板已关闭')); });
@@ -832,6 +1180,19 @@
     els.btnSettingsSave.addEventListener('click', function () {
       saveSettings();
     });
+    Array.prototype.forEach.call(els.tabBar.querySelectorAll('button[data-tab]'), function (button) {
+      button.addEventListener('click', function () {
+        switchTab(button.getAttribute('data-tab'));
+      });
+    });
+    els.btnLogcatStart.addEventListener('click', startLogcat);
+    els.btnLogcatStop.addEventListener('click', stopLogcat);
+    els.btnLogcatRefresh.addEventListener('click', function () { pollLogcat(true); });
+    els.btnLogcatExport.addEventListener('click', exportLogcat);
+    els.logcatLevel.addEventListener('change', function () { pollLogcat(true); });
+    els.btnPerfRefresh.addEventListener('click', refreshPerf);
+    els.perfAuto.addEventListener('change', refreshPerf);
+    els.btnAabConvert.addEventListener('click', convertAab);
     els.btnRefreshDevices.addEventListener('click', function () {
       refreshState({ quiet: false });
     });

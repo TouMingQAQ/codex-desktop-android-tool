@@ -1,6 +1,6 @@
 {
   "name": "codex-desktop-android-tool",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Android device control MCP server for ChatGPT desktop / Codex.",

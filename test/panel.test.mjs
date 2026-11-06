@@ -80,7 +80,7 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.deepEqual(panel._meta['openai/ui'].entrypoints, [{ type: 'thread' }])
     assert.equal(panel._meta['openai/ui'].preferredModelDisplayMode, 'inline')
     assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
-    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig'])
+    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
     assert.ok(!/pushed to the right-side/i.test(view.description), 'android_view 不应再宣称自动推送到面板')
@@ -106,6 +106,7 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.equal(content.mimeType, 'text/html;profile=mcp-app')
     assert.ok(content.text.includes('<title>安卓设备</title>'))
     assert.ok(content.text.includes('function mapContainPoint'), '面板应内联坐标映射源码')
+    assert.ok(content.text.includes('Logcat') && content.text.includes('性能') && content.text.includes('AAB→APK'), '面板应包含 Logcat / 性能 / AAB 标签')
 
     // 面板只通过宿主 tools/call 通信，不自己开本地网络端口。
     assert.ok(!/\bfetch\s*\(/.test(content.text), '面板不应使用 fetch')

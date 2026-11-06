@@ -22,7 +22,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.2'
+const SERVER_VERSION = '0.2.3'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -276,10 +276,14 @@ const panelToolDef = {
     properties: {
       action: {
         type: 'string',
-        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig'],
+        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample'],
         description: 'Panel operation.',
       },
-      serial: { type: 'string', description: 'Device serial for action=select.' },
+      serial: { type: 'string', description: 'Device serial for device-scoped actions.' },
+      cursor: { type: 'integer', description: 'Logcat cursor from the previous logcatRead.' },
+      limit: { type: 'integer', description: 'Logcat max lines to return.' },
+      level: { type: 'string', description: 'Logcat minimum level: V/D/I/W/E/F/S.' },
+      pkg: { type: 'string', description: 'Package name for performance sampling.' },
       config: {
         type: 'object',
         additionalProperties: false,
@@ -478,6 +482,18 @@ const handlers = {
     if (action === 'refreshDevices') return toolResult(await service.humanCommand({ action: 'refreshDevices' }))
     if (action === 'getConfig') return toolResult(panelConfigView())
     if (action === 'saveConfig') return toolResult(await savePanelConfig(args.config ?? {}))
+    if (action === 'logcatStart') return toolResult(await service.humanCommand({ action: 'logcatStart', serial: args.serial }))
+    if (action === 'logcatStop') return toolResult(await service.humanCommand({ action: 'logcatStop' }))
+    if (action === 'logcatRead') {
+      return toolResult(await service.logcatRead({
+        serial: args.serial,
+        cursor: args.cursor,
+        limit: args.limit,
+        level: args.level,
+      }))
+    }
+    if (action === 'exportLogcat') return toolResult(await service.exportLogcat({ serial: args.serial, level: args.level }))
+    if (action === 'perfSample') return toolResult(await service.perfSample({ serial: args.serial, pkg: args.pkg }))
     return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
   },
 }
