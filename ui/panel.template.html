@@ -391,6 +391,9 @@
           <option value="ps">PlayStation</option>
           <option value="switch">Switch</option>
         </select>
+        <label style="display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px">
+          <input id="gpPcEnable" type="checkbox" /> 电脑手柄
+        </label>
         <button id="btnGpClose" type="button">关闭</button>
       </div>
       <div id="gpStatus" class="gp-status">需要先开启实时视频（scrcpy UHID）</div>
@@ -447,7 +450,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.9' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.3.0' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -478,6 +481,7 @@
     btnGpReset: document.getElementById('btnGpReset'),
     btnGpDisconnect: document.getElementById('btnGpDisconnect'),
     gpType: document.getElementById('gpType'),
+    gpPcEnable: document.getElementById('gpPcEnable'),
     gpStatus: document.getElementById('gpStatus'),
     gpStatusRight: document.getElementById('gpStatusRight'),
     gpLstick: document.getElementById('gpLstick'),
@@ -588,6 +592,11 @@
     gpRt: 0,
     gpDragging: null,
     gpSendTimer: null,
+    gpPcEnabled: false,
+    gpRaf: null,
+    gpPcId: '',
+    gpLastSignature: '',
+    gpLastSentAt: 0,
   };
 
   var SETTINGS_FIELDS = [
@@ -1630,6 +1639,7 @@
   }
 
   async function closeGamepad() {
+    if (state.gpPcEnabled) stopPcGamepad();
     els.gamepadOverlay.hidden = true;
     resetGamepadState();
     try { await callTool('android_panel', { action: 'stopVideo' }, 15000); } catch (_) { /* ignore */ }
@@ -1644,6 +1654,91 @@
     } catch (error) {
       els.gpStatus.textContent = '断连失败：' + (error && error.message ? error.message : String(error));
     }
+  }
+
+  function applyPcGamepad(pad) {
+    var map = {
+      0: 'a', 1: 'b', 2: 'x', 3: 'y', 4: 'lb', 5: 'rb',
+      8: 'back', 9: 'start', 10: 'lstick', 11: 'rstick',
+      12: 'up', 13: 'down', 14: 'left', 15: 'right', 16: 'guide',
+    };
+    var buttons = new Set();
+    Object.keys(map).forEach(function (index) {
+      var button = pad.buttons[Number(index)];
+      if (button && button.pressed === true) buttons.add(map[index]);
+    });
+    var lx = Number(pad.axes[0] ?? 0);
+    var ly = Number(pad.axes[1] ?? 0);
+    var rx = Number(pad.axes[2] ?? 0);
+    var ry = Number(pad.axes[3] ?? 0);
+    var dead = 0.08;
+    if (Math.abs(lx) < dead) lx = 0;
+    if (Math.abs(ly) < dead) ly = 0;
+    if (Math.abs(rx) < dead) rx = 0;
+    if (Math.abs(ry) < dead) ry = 0;
+    state.gpButtons = buttons;
+    state.gpLstick = { x: Number(lx.toFixed(3)), y: Number((-ly).toFixed(3)) };
+    state.gpRstick = { x: Number(rx.toFixed(3)), y: Number((-ry).toFixed(3)) };
+    state.gpLt = Number(((pad.buttons[6] && pad.buttons[6].value) || 0).toFixed(3));
+    state.gpRt = Number(((pad.buttons[7] && pad.buttons[7].value) || 0).toFixed(3));
+    updateGpButtonVisual();
+  }
+
+  function pollPcGamepad(now) {
+    if (!state.gpPcEnabled || els.gamepadOverlay.hidden) {
+      state.gpRaf = null;
+      return;
+    }
+    var pads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
+    var pad = null;
+    for (var i = 0; i < (pads ? pads.length : 0); i += 1) {
+      if (pads[i] && pads[i].connected !== false) { pad = pads[i]; break; }
+    }
+    if (!pad) {
+      if (state.gpPcId) {
+        state.gpPcId = '';
+        resetGamepadState();
+        void sendGamepadNow();
+      }
+      els.gpStatus.textContent = '未检测到电脑手柄，按一下手柄任意键再试';
+    } else {
+      state.gpPcId = pad.id || 'gamepad';
+      applyPcGamepad(pad);
+      var signature = JSON.stringify({
+        b: Array.from(state.gpButtons).sort(),
+        l: state.gpLstick, r: state.gpRstick, lt: state.gpLt, rt: state.gpRt,
+      });
+      if (signature !== state.gpLastSignature && now - state.gpLastSentAt >= 40) {
+        state.gpLastSignature = signature;
+        state.gpLastSentAt = now;
+        void sendGamepadNow();
+      }
+      els.gpStatus.textContent = '电脑手柄已连接 · ' + state.gpPcId;
+    }
+    state.gpRaf = requestAnimationFrame(pollPcGamepad);
+  }
+
+  function startPcGamepad() {
+    if (typeof navigator.getGamepads !== 'function') {
+      els.gpStatus.textContent = '此宿主不支持 Gamepad API';
+      return;
+    }
+    state.gpPcEnabled = true;
+    state.gpLastSignature = '';
+    state.gpLastSentAt = 0;
+    if (state.gpRaf) cancelAnimationFrame(state.gpRaf);
+    els.gpStatus.textContent = '等待电脑手柄输入…';
+    state.gpRaf = requestAnimationFrame(pollPcGamepad);
+  }
+
+  function stopPcGamepad() {
+    state.gpPcEnabled = false;
+    if (state.gpRaf) { cancelAnimationFrame(state.gpRaf); state.gpRaf = null; }
+    state.gpPcId = '';
+    state.gpLastSignature = '';
+    if (els.gpPcEnable) els.gpPcEnable.checked = false;
+    resetGamepadState();
+    void sendGamepadNow();
   }
 
   function bindGamepadStick(element, which) {
@@ -1836,6 +1931,8 @@
     if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
     if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
     if (state.gpSendTimer) { clearTimeout(state.gpSendTimer); state.gpSendTimer = null; }
+    if (state.gpRaf) { cancelAnimationFrame(state.gpRaf); state.gpRaf = null; }
+    state.gpPcEnabled = false;
     stopLogcatTimer();
     stopPerfTimer();
     state.dragging = null;
@@ -1918,6 +2015,18 @@
     els.btnGpReset.addEventListener('click', function () { resetGamepadState(); sendGamepad(); });
     els.btnGpDisconnect.addEventListener('click', disconnectGamepad);
     els.gpType.addEventListener('change', sendGamepad);
+    els.gpPcEnable.addEventListener('change', function () {
+      if (els.gpPcEnable.checked) startPcGamepad();
+      else stopPcGamepad();
+    });
+    window.addEventListener('gamepadconnected', function (event) {
+      if (els.gpPcEnable.checked) {
+        els.gpStatus.textContent = '电脑手柄已连接 · ' + (event.gamepad && event.gamepad.id ? event.gamepad.id : 'gamepad');
+      }
+    });
+    window.addEventListener('gamepaddisconnected', function () {
+      if (state.gpPcEnabled) els.gpStatus.textContent = '电脑手柄已断开';
+    });
     els.gpLt.addEventListener('input', function () { state.gpLt = Number(els.gpLt.value) || 0; sendGamepad(); });
     els.gpRt.addEventListener('input', function () { state.gpRt = Number(els.gpRt.value) || 0; sendGamepad(); });
     els.gamepadOverlay.addEventListener('pointerdown', function (event) {

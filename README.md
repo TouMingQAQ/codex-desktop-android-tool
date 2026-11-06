@@ -28,7 +28,7 @@
 
 面板标签：**设备 / Logcat / 性能 / AAB→APK / 设置**。
 
-已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；独立 scrcpy 窗口（随包 scrcpy.exe 3.3.4）；虚拟手柄（XBox/PS/Switch，UHID，后台控制流不显示视频）；Logcat 启动/停止/级别/包名/关键字筛选/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单；设置 Tab 内可改插件配置，并保留扫码配对 / 配对码配对 / IP 直连三种无线调试弹窗；截图可一键复制到剪贴板，粘贴进输入框。
+已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；独立 scrcpy 窗口（随包 scrcpy.exe 3.3.4）；虚拟手柄（XBox/PS/Switch，UHID，后台控制流不显示视频；支持把电脑 USB/蓝牙手柄经 Gamepad API 转接给手机）；Logcat 启动/停止/级别/包名/关键字筛选/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单；设置 Tab 内可改插件配置，并保留扫码配对 / 配对码配对 / IP 直连三种无线调试弹窗；截图可一键复制到剪贴板，粘贴进输入框。
 
 限制：实时视频在 MCP App sandbox 中默认关闭（CSP/混合内容不可控）；MCP Apps 没有直接预填 composer 的接口，所以「截图到输入框」是把 PNG 写入剪贴板，用户回到输入框 Ctrl+V 粘贴后继续打字。
 
@@ -44,7 +44,7 @@ codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.9`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.3.0`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 

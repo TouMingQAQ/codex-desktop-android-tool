@@ -115,6 +115,7 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.ok(content.text.includes('logcatPkg') && content.text.includes('logcatKeyword'), 'Logcat 应有包名和关键字筛选输入')
     assert.ok(content.text.includes('id="videoCanvas"') && content.text.includes('id="btnLive"'), '面板应包含实时视频 canvas 和按钮')
     assert.ok(content.text.includes('id="gamepadOverlay"') && content.text.includes('data-gp="a"'), '面板应包含手柄 UI')
+    assert.ok(content.text.includes('id="gpPcEnable"') && content.text.includes('getGamepads'), '面板应支持电脑手柄输入')
     assert.ok(content.text.includes('id="btnSendShot"') && content.text.includes('ClipboardItem'), '面板应支持截图复制到输入框')
     assert.ok(existsSync(join(root, 'scrcpy', 'scrcpy.exe')), '应随包 scrcpy.exe')
     assert.ok(existsSync(join(root, 'scrcpy', 'scrcpy-server-3.3.4')), '应随包 scrcpy 3.3.4 的 server')
