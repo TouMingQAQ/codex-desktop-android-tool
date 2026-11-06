@@ -24,7 +24,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.8'
+const SERVER_VERSION = '0.2.9'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -319,6 +319,7 @@ const PANEL_RESOURCE_META = {
       frameDomains: [],
       baseUriDomains: [],
     },
+    permissions: { clipboardWrite: {} },
     prefersBorder: false,
   },
   'openai/widgetHeightHint': 640,

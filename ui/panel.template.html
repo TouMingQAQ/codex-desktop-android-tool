@@ -245,7 +245,7 @@
     <button id="btnLive" type="button" disabled hidden>实时</button>
     <button id="btnScrcpy" type="button" disabled>scrcpy 窗口</button>
     <button id="btnGamepad" type="button" disabled>手柄</button>
-    <button id="btnSendShot" type="button" disabled>发到聊天</button>
+    <button id="btnSendShot" type="button" disabled>截图到输入框</button>
     <span id="status" class="status">未连接</span>
   </footer>
   </section>
@@ -447,7 +447,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.8' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.9' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -1699,20 +1699,22 @@
       return;
     }
     els.btnSendShot.disabled = true;
-    els.status.textContent = '截图并发送到聊天…';
+    els.status.textContent = '截图并复制到剪贴板…';
     try {
       await takeScreenshot({ quiet: true });
-      if (!state.lastShotData || state.lastShotSerial !== state.selectedSerial) throw new Error('没有可发送的截图');
-      await rpc('ui/message', {
-        role: 'user',
-        content: [
-          { type: 'text', text: '安卓设备截图 · ' + state.selectedSerial },
-          { type: 'image', data: state.lastShotData, mimeType: state.lastShotMime || 'image/png' },
-        ],
-      }, 20000);
-      els.status.textContent = '截图已发到聊天';
+      if (!state.lastShotData || state.lastShotSerial !== state.selectedSerial) throw new Error('没有可复制的截图');
+      var mime = state.lastShotMime || 'image/png';
+      var binary = atob(state.lastShotData);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined' || typeof navigator.clipboard.write !== 'function') {
+        throw new Error('宿主未开放剪贴板写入权限');
+      }
+      await navigator.clipboard.write([new ClipboardItem({ [mime]: new Blob([bytes], { type: mime }) })]);
+      els.status.textContent = '截图已复制，Ctrl+V 粘贴到输入框';
+      showBanner('截图已复制到剪贴板，回到输入框按 Ctrl+V 粘贴后继续打字。', 'info');
     } catch (error) {
-      showBanner('发到聊天失败：' + (error && error.message ? error.message : String(error)), 'error');
+      showBanner('复制截图失败：' + (error && error.message ? error.message : String(error)), 'error');
     } finally {
       els.btnSendShot.disabled = false;
     }
