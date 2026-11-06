@@ -24,7 +24,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.6'
+const SERVER_VERSION = '0.2.7'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────

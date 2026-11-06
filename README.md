@@ -17,7 +17,7 @@
 
 ## 右侧「安卓设备」面板（MCP Apps）
 
-面板由 MCP Apps 资源 + `android_panel` 工具的 `_meta['openai/ui'].entrypoints = [{ type: 'thread' }]` 声明；宿主把它挂到对话右侧标签栏。设备操作默认走宿主的 `tools/call` 桥；实时视频会额外启动一个仅监听 `127.0.0.1` 的临时 WebSocket（动态端口 + 一次性 token + Origin 校验），停止或断开面板后释放。若宿主 CSP 拦截回环连接，会自动回退到截图模式。
+面板由 MCP Apps 资源 + `android_panel` 工具的 `_meta['openai/ui'].entrypoints = [{ type: 'thread' }]` 声明；宿主把它挂到对话右侧标签栏。设备操作默认走宿主的 `tools/call` 桥；实时视频在 MCP App sandbox 里不可靠，默认关闭，面板保持截图模式；独立 scrcpy 窗口使用随包的 `scrcpy.exe 3.3.4`。
 
 要求：
 
@@ -28,9 +28,9 @@
 
 面板标签：**设备 / Logcat / 性能 / AAB→APK / 设置**。
 
-已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；实时视频（scrcpy H.264 → WebCodecs，回环 WebSocket）与自动回退截图；独立 scrcpy 窗口；虚拟手柄（XBox/PS/Switch，UHID）；Logcat 启动/停止/级别/包名/关键字筛选/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单；设置 Tab 内可改插件配置，并保留扫码配对 / 配对码配对 / IP 直连三种无线调试弹窗。
+已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；独立 scrcpy 窗口（随包 scrcpy.exe 3.3.4）；虚拟手柄（XBox/PS/Switch，UHID，后台控制流不显示视频）；Logcat 启动/停止/级别/包名/关键字筛选/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单；设置 Tab 内可改插件配置，并保留扫码配对 / 配对码配对 / IP 直连三种无线调试弹窗；截图可一键发到 Chat。
 
-限制：实时视频依赖 Codex 宿主允许 MCP App 连接 `127.0.0.1` 的 WebSocket；若被 CSP/混合内容拦截，会自动回退到截图模式并在界面提示。
+限制：实时视频在 MCP App sandbox 中默认关闭（CSP/混合内容不可控）；「发到聊天」使用 MCP App 的 `ui/message`，把当前截图作为图片消息插入对话。
 
 
 ## 安装
@@ -44,7 +44,7 @@ codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.6`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.7`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 
@@ -180,7 +180,7 @@ codex-desktop-android-tool/
 ## 已知限制
 
 - 随包 `adb.exe` 是 Windows 版；macOS / Linux 需要在配置里指定自己的 adb。
-- `android_control` 的 Unicode 输入和手柄摇杆/扳机需要 scrcpy control 通道；当前 `scrcpy-stream.js` 仍会同时开视频，Codex 场景下建议后续加 `video=false` 纯控制模式。
+- `android_control` 的 Unicode 输入和手柄摇杆/扳机需要 scrcpy control 通道；手柄会启动后台 scrcpy 控制流（不渲染视频），关闭手柄面板后停止。
 - 插件安装只拷贝文件，不会执行 `npm install`；本目录已自带 `node_modules`。
-- 右侧面板依赖 Codex 桌面版的 MCP Apps；实时视频需要宿主允许回环 WebSocket，否则自动回退截图。面板不可用时先检查 `enable_mcp_apps` 是否启用、桌面版是否 ≥ 26.1103.3517.0。
+- 右侧面板依赖 Codex 桌面版的 MCP Apps；实时视频默认关闭，如需真 60fps 用「scrcpy 窗口」。面板不可用时先检查 `enable_mcp_apps` 是否启用、桌面版是否 ≥ 26.1103.3517.0。
 - `android_adb` 能执行任意 adb 命令，建议在 Codex 里把写操作工具设为需审批。

@@ -115,6 +115,9 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.ok(content.text.includes('logcatPkg') && content.text.includes('logcatKeyword'), 'Logcat 应有包名和关键字筛选输入')
     assert.ok(content.text.includes('id="videoCanvas"') && content.text.includes('id="btnLive"'), '面板应包含实时视频 canvas 和按钮')
     assert.ok(content.text.includes('id="gamepadOverlay"') && content.text.includes('data-gp="a"'), '面板应包含手柄 UI')
+    assert.ok(content.text.includes('id="btnSendShot"') && content.text.includes("'ui/message'"), '面板应支持截图发到聊天')
+    assert.ok(existsSync(join(root, 'scrcpy', 'scrcpy.exe')), '应随包 scrcpy.exe')
+    assert.ok(existsSync(join(root, 'scrcpy', 'scrcpy-server-3.3.4')), '应随包 scrcpy 3.3.4 的 server')
 
     // 面板默认走宿主 tools/call；实时视频允许回环 WebSocket，但不能用 fetch/XHR。
     assert.ok(!/\bfetch\s*\(/.test(content.text), '面板不应使用 fetch')

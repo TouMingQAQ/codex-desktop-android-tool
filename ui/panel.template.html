@@ -242,9 +242,10 @@
     <button id="btnBack" type="button" disabled>返回</button>
     <button id="btnHome" type="button" disabled>Home</button>
     <button id="btnWake" type="button" disabled>唤醒</button>
-    <button id="btnLive" type="button" disabled>实时</button>
+    <button id="btnLive" type="button" disabled hidden>实时</button>
     <button id="btnScrcpy" type="button" disabled>scrcpy 窗口</button>
     <button id="btnGamepad" type="button" disabled>手柄</button>
+    <button id="btnSendShot" type="button" disabled>发到聊天</button>
     <span id="status" class="status">未连接</span>
   </footer>
   </section>
@@ -446,7 +447,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.6' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.7' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -471,6 +472,7 @@
     btnLive: document.getElementById('btnLive'),
     btnScrcpy: document.getElementById('btnScrcpy'),
     btnGamepad: document.getElementById('btnGamepad'),
+    btnSendShot: document.getElementById('btnSendShot'),
     gamepadOverlay: document.getElementById('gamepadOverlay'),
     btnGpClose: document.getElementById('btnGpClose'),
     btnGpReset: document.getElementById('btnGpReset'),
@@ -556,6 +558,9 @@
     refreshTimer: null,
     shotTimer: null,
     lastShotAt: 0,
+    lastShotData: '',
+    lastShotMime: 'image/png',
+    lastShotSerial: '',
     busy: false,
     activeTab: 'device',
     logcatCursor: 0,
@@ -569,6 +574,7 @@
     qrToken: '',
     wirelessKind: '',
     live: false,
+    controlOnly: false,
     videoWs: null,
     videoDecoder: null,
     videoCodec: '',
@@ -700,6 +706,7 @@
     els.btnLive.disabled = busy || !hasDevice;
     els.btnScrcpy.disabled = busy || !hasDevice;
     els.btnGamepad.disabled = busy || !hasDevice;
+    els.btnSendShot.disabled = busy || !hasDevice;
   }
 
   function hasOnlineDevice() {
@@ -884,6 +891,9 @@
         els.shot.src = image.data;
       } else {
         els.shot.src = 'data:' + (image.mimeType || 'image/png') + ';base64,' + image.data;
+        state.lastShotData = image.data;
+        state.lastShotMime = image.mimeType || 'image/png';
+        state.lastShotSerial = state.selectedSerial;
       }
       state.imageWidth = Number(payload && (payload.width || payload.imageWidth)) || state.imageWidth;
       state.imageHeight = Number(payload && (payload.height || payload.imageHeight)) || state.imageHeight;
@@ -1444,33 +1454,48 @@
     takeScreenshot({ quiet: true });
   }
 
-  function connectVideo(url) {
+  function connectVideo(url, controlOnly) {
+    state.controlOnly = controlOnly === true;
     try {
       var ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       state.videoWs = ws;
       ws.onopen = function () {
-        els.status.textContent = '实时视频已连接';
-        setConnected('ok', '实时视频');
+        if (state.controlOnly) {
+          els.gpStatus.textContent = 'UHID 控制已连接';
+          els.status.textContent = '手柄控制已连接';
+        } else {
+          els.status.textContent = '实时视频已连接';
+          setConnected('ok', '实时视频');
+        }
       };
       ws.onmessage = function (event) {
         if (typeof event.data === 'string') {
           var message
           try { message = JSON.parse(event.data) } catch (_) { return }
           if (message.type === 'meta') {
-            if (message.codec) {
-              try { ensureVideoDecoder(message.codec) } catch (error) { handleVideoFailure('解码器初始化失败：' + (error && error.message ? error.message : String(error))); return }
+            if (!state.controlOnly) {
+              if (message.codec) {
+                try { ensureVideoDecoder(message.codec) } catch (error) { handleVideoFailure('解码器初始化失败：' + (error && error.message ? error.message : String(error))); return }
+              }
+              if (message.width) state.videoWidth = message.width;
+              if (message.height) state.videoHeight = message.height;
+              if (message.serial) els.status.textContent = '实时视频 · ' + message.width + '×' + message.height;
             }
-            if (message.width) state.videoWidth = message.width;
-            if (message.height) state.videoHeight = message.height;
-            if (message.serial) els.status.textContent = '实时视频 · ' + message.width + '×' + message.height;
           } else if (message.type === 'gamepad') {
             els.gpStatus.textContent = message.via === 'uhid' ? 'UHID 已连接' : (message.via === 'keyevent' ? 'adb 按键回退' : '等待手柄输入');
           } else if (message.type === 'status' && message.running === false) {
-            handleVideoFailure(message.error || 'scrcpy 已停止');
+            if (state.controlOnly) {
+              els.gpStatus.textContent = '手柄控制已断开：' + (message.error || 'scrcpy 已停止');
+              state.controlOnly = false;
+              closeVideoSocket();
+            } else {
+              handleVideoFailure(message.error || 'scrcpy 已停止');
+            }
           }
           return;
         }
+        if (state.controlOnly) return;
         var bytes = new Uint8Array(event.data);
         if (bytes.length < 9) return;
         try {
@@ -1488,13 +1513,19 @@
         }
       };
       ws.onerror = function () {
+        if (state.controlOnly) {
+          els.gpStatus.textContent = '手柄控制连接失败（宿主 CSP/回环可能被拦截）';
+          return;
+        }
         handleVideoFailure('WebSocket 连接失败（宿主 CSP/回环可能被拦截）');
       };
       ws.onclose = function () {
+        if (state.controlOnly) return;
         if (state.live) handleVideoFailure('连接已关闭');
       };
     } catch (error) {
-      handleVideoFailure(error && error.message ? error.message : String(error));
+      if (state.controlOnly) els.gpStatus.textContent = '手柄控制连接失败：' + (error && error.message ? error.message : String(error));
+      else handleVideoFailure(error && error.message ? error.message : String(error));
     }
   }
 
@@ -1533,11 +1564,42 @@
   }
 
   function gamepadReady() {
-    if (!state.live || !state.videoWs || state.videoWs.readyState !== 1) {
-      els.gpStatus.textContent = '需要先开启实时视频（scrcpy UHID）';
+    if (!state.videoWs || state.videoWs.readyState !== 1) {
+      els.gpStatus.textContent = '手柄控制未连接';
       return false;
     }
     return true;
+  }
+
+  async function ensureControlStream() {
+    if (state.videoWs && state.videoWs.readyState === 1) return true;
+    if (!state.selectedSerial) {
+      els.gpStatus.textContent = '请先选择设备';
+      return false;
+    }
+    setBusy(true);
+    els.gpStatus.textContent = '启动手柄控制…';
+    try {
+      var result = await callTool('android_panel', { action: 'startVideo', serial: state.selectedSerial }, 120000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动失败');
+      state.controlOnly = true;
+      state.live = false;
+      connectVideo(payload.url, true);
+      var deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (state.videoWs && state.videoWs.readyState === 1) return true;
+        await new Promise(function (resolve) { setTimeout(resolve, 120); });
+      }
+      throw new Error('连接超时（宿主可能拦截了回环 WebSocket）');
+    } catch (error) {
+      els.gpStatus.textContent = '手柄控制启动失败：' + (error && error.message ? error.message : String(error));
+      state.controlOnly = false;
+      closeVideoSocket();
+      return false;
+    } finally {
+      setBusy(false);
+    }
   }
 
   function sendGamepad() {
@@ -1581,15 +1643,21 @@
     updateGpButtonVisual();
   }
 
-  function openGamepad() {
+  async function openGamepad() {
     els.gamepadOverlay.hidden = false;
-    els.gpStatus.textContent = state.live ? 'UHID 已连接' : '需要先开启实时视频（scrcpy UHID）';
-    sendGamepad();
+    els.gpStatus.textContent = '准备手柄控制…';
+    var ready = await ensureControlStream();
+    if (ready) sendGamepad();
   }
 
-  function closeGamepad() {
+  async function closeGamepad() {
     els.gamepadOverlay.hidden = true;
     resetGamepadState();
+    if (state.controlOnly) {
+      state.controlOnly = false;
+      closeVideoSocket();
+      try { await callTool('android_panel', { action: 'stopVideo' }, 15000); } catch (_) { /* ignore */ }
+    }
   }
 
   function disconnectGamepad() {
@@ -1648,6 +1716,31 @@
       return { el: els.videoCanvas, width: state.videoWidth, height: state.videoHeight };
     }
     return { el: els.shot, width: state.imageWidth, height: state.imageHeight };
+  }
+
+  async function sendScreenshotToChat() {
+    if (!state.selectedSerial) {
+      showBanner('请先选择设备', 'warn');
+      return;
+    }
+    els.btnSendShot.disabled = true;
+    els.status.textContent = '截图并发送到聊天…';
+    try {
+      await takeScreenshot({ quiet: true });
+      if (!state.lastShotData || state.lastShotSerial !== state.selectedSerial) throw new Error('没有可发送的截图');
+      await rpc('ui/message', {
+        role: 'user',
+        content: [
+          { type: 'text', text: '安卓设备截图 · ' + state.selectedSerial },
+          { type: 'image', data: state.lastShotData, mimeType: state.lastShotMime || 'image/png' },
+        ],
+      }, 20000);
+      els.status.textContent = '截图已发到聊天';
+    } catch (error) {
+      showBanner('发到聊天失败：' + (error && error.message ? error.message : String(error)), 'error');
+    } finally {
+      els.btnSendShot.disabled = false;
+    }
   }
 
   function pointerDown(event) {
@@ -1771,8 +1864,9 @@
     if (els.wirelessOverlay) els.wirelessOverlay.hidden = true;
     if (els.gamepadOverlay) els.gamepadOverlay.hidden = true;
     closeVideoSocket();
-    if (state.live) {
+    if (state.live || state.controlOnly) {
       state.live = false;
+      state.controlOnly = false;
       void callTool('android_panel', { action: 'stopVideo' }, 10000).catch(function () {});
     }
     stopQrTimer();
@@ -1841,6 +1935,7 @@
       }
     });
     els.btnGamepad.addEventListener('click', openGamepad);
+    els.btnSendShot.addEventListener('click', sendScreenshotToChat);
     els.btnGpClose.addEventListener('click', closeGamepad);
     els.btnGpReset.addEventListener('click', function () { resetGamepadState(); sendGamepad(); });
     els.btnGpDisconnect.addEventListener('click', disconnectGamepad);
