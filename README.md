@@ -38,19 +38,19 @@
 marketplace 根目录里需要有 `.agents/plugins/marketplace.json`，且 `source` 指向的插件目录要在这个根目录内部（父目录/绝对路径会被忽略）。本仓库根目录的 `.agents/plugins/marketplace.json` 已按此配置好：
 
 ```powershell
-codex plugin marketplace add "C:\WorkSpace\Work\Agent\Plugins\android-tool"
+codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `%USERPROFILE%\.codex\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.1`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.1`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 
 ```powershell
-codex mcp add android-tool -- node "C:\WorkSpace\Work\Agent\Plugins\android-tool\codex-desktop-android-tool\server.mjs"
+codex mcp add android-tool -- node "<本插件目录>\server.mjs"
 ```
 
-> Windows 上 `codex` 可能不在 PATH，CLI 实际位于 `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`，用完整路径调用即可。
+> Windows 上 `codex` 可能不在 PATH，CLI 实际位于 Codex 安装目录下的 `bin\<hash>\codex.exe`，用完整路径调用即可。
 
 ### 方式 3：发到 GitHub，别人一条命令装
 
