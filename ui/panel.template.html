@@ -231,6 +231,8 @@
         <option value="V">V</option><option value="D">D</option><option value="I">I</option>
         <option value="W">W</option><option value="E">E</option><option value="F">F</option>
       </select>
+      <input id="logcatPkg" type="text" placeholder="包名筛选" style="width:130px" />
+      <input id="logcatKeyword" type="text" placeholder="关键字筛选" style="width:120px" />
       <span id="logcatStatus" class="muted">未启动</span>
     </div>
     <div id="logcatList" class="logcat-list">Logcat 未启动。</div>
@@ -358,7 +360,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.4' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.5' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -425,6 +427,8 @@
     btnLogcatRefresh: document.getElementById('btnLogcatRefresh'),
     btnLogcatExport: document.getElementById('btnLogcatExport'),
     logcatLevel: document.getElementById('logcatLevel'),
+    logcatPkg: document.getElementById('logcatPkg'),
+    logcatKeyword: document.getElementById('logcatKeyword'),
     logcatStatus: document.getElementById('logcatStatus'),
     logcatList: document.getElementById('logcatList'),
     btnPerfRefresh: document.getElementById('btnPerfRefresh'),
@@ -1103,6 +1107,8 @@
         cursor: reset ? 0 : state.logcatCursor,
         limit: 400,
         level: els.logcatLevel.value,
+        pkg: els.logcatPkg.value.trim(),
+        q: els.logcatKeyword.value.trim(),
       }, 20000);
       var payload = toolJson(result);
       if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '读取 Logcat 失败');
@@ -1152,7 +1158,7 @@
     if (!ensureLogcatDevice()) return;
     els.logcatStatus.textContent = '导出中…';
     try {
-      var result = await callTool('android_panel', { action: 'exportLogcat', serial: state.selectedSerial, level: els.logcatLevel.value }, 30000);
+      var result = await callTool('android_panel', { action: 'exportLogcat', serial: state.selectedSerial, level: els.logcatLevel.value, pkg: els.logcatPkg.value.trim(), q: els.logcatKeyword.value.trim() }, 30000);
       var payload = toolJson(result);
       if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '导出失败');
       els.logcatStatus.textContent = '已导出：' + payload.path + ' · ' + payload.lines + ' 行';
@@ -1393,6 +1399,8 @@
     els.btnLogcatRefresh.addEventListener('click', function () { pollLogcat(true); });
     els.btnLogcatExport.addEventListener('click', exportLogcat);
     els.logcatLevel.addEventListener('change', function () { pollLogcat(true); });
+    els.logcatPkg.addEventListener('change', function () { pollLogcat(true); });
+    els.logcatKeyword.addEventListener('change', function () { pollLogcat(true); });
     els.btnPerfRefresh.addEventListener('click', refreshPerf);
     els.perfAuto.addEventListener('change', refreshPerf);
     els.btnAabConvert.addEventListener('click', convertAab);

@@ -22,7 +22,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.4'
+const SERVER_VERSION = '0.2.5'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -283,7 +283,8 @@ const panelToolDef = {
       cursor: { type: 'integer', description: 'Logcat cursor from the previous logcatRead.' },
       limit: { type: 'integer', description: 'Logcat max lines to return.' },
       level: { type: 'string', description: 'Logcat minimum level: V/D/I/W/E/F/S.' },
-      pkg: { type: 'string', description: 'Package name for performance sampling.' },
+      q: { type: 'string', description: 'Logcat keyword filter (case-insensitive).' },
+      pkg: { type: 'string', description: 'Package name filter for Logcat or performance sampling.' },
       token: { type: 'string', description: 'QR pairing session token.' },
       host: { type: 'string', description: 'Wireless host for pair/connect/disconnect.' },
       port: { type: 'integer', description: 'Wireless port for pair/connect/disconnect.' },
@@ -494,9 +495,11 @@ const handlers = {
         cursor: args.cursor,
         limit: args.limit,
         level: args.level,
+        q: args.q,
+        pkg: args.pkg,
       }))
     }
-    if (action === 'exportLogcat') return toolResult(await service.exportLogcat({ serial: args.serial, level: args.level }))
+    if (action === 'exportLogcat') return toolResult(await service.exportLogcat({ serial: args.serial, level: args.level, q: args.q, pkg: args.pkg }))
     if (action === 'perfSample') return toolResult(await service.perfSample({ serial: args.serial, pkg: args.pkg }))
     if (action === 'qrPairStart') return toolResult(await service.humanCommand({ action: 'qrPairStart' }))
     if (action === 'qrPairStatus') return toolResult(await service.humanCommand({ action: 'qrPairStatus', token: args.token }))

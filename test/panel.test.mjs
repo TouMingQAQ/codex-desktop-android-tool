@@ -80,6 +80,8 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.deepEqual(panel._meta['openai/ui'].entrypoints, [{ type: 'thread' }])
     assert.equal(panel._meta['openai/ui'].preferredModelDisplayMode, 'inline')
     assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
+    assert.ok(panel.inputSchema.properties.q, 'android_panel 应支持 logcat 关键字参数')
+    assert.ok(panel.inputSchema.properties.pkg, 'android_panel 应支持 logcat 包名参数')
     assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
@@ -110,6 +112,7 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.ok(content.text.includes('data-tab="settings"'), '设置应是独立 Tab')
     assert.ok(content.text.includes('扫码配对') && content.text.includes('配对码配对') && content.text.includes('IP 直连'), '应保留无线配对入口')
     assert.ok(content.text.includes('qrPairStart') && content.text.includes('qrPairImage'), '扫码配对应走宿主工具桥')
+    assert.ok(content.text.includes('logcatPkg') && content.text.includes('logcatKeyword'), 'Logcat 应有包名和关键字筛选输入')
 
     // 面板只通过宿主 tools/call 通信，不自己开本地网络端口。
     assert.ok(!/\bfetch\s*\(/.test(content.text), '面板不应使用 fetch')
