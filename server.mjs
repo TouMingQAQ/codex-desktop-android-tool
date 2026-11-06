@@ -11,6 +11,8 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,7 +24,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.5'
+const SERVER_VERSION = '0.2.6'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -169,6 +171,83 @@ function savePanelConfig(patch) {
   return panelConfigView()
 }
 
+// ── 实时视频本地中继 ────────────────────────────────────────────────────────
+// scrcpy-stream.js 自带 WebSocket 升级处理；这里只加 127.0.0.1、动态端口、一次性 token 和 Origin 校验。
+let videoRelay
+
+function allowedVideoOrigin(origin) {
+  if (!origin) return true
+  if (origin === 'null') return true
+  try {
+    const url = new URL(origin)
+    if (url.protocol === 'codex-sandbox:') return true
+    return url.hostname.endsWith('.web-sandbox.oaiusercontent.com')
+  } catch {
+    return false
+  }
+}
+
+async function ensureVideoRelay() {
+  if (videoRelay !== undefined) return videoRelay
+  const token = randomBytes(24).toString('hex')
+  const server = createServer((request, response) => {
+    if (request.url === '/health') {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ ok: true }))
+      return
+    }
+    response.writeHead(404, { 'content-type': 'text/plain' })
+    response.end('not found')
+  })
+  server.on('upgrade', (request, socket, head) => {
+    try {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+      if (url.pathname !== '/video') {
+        socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
+        return
+      }
+      if (url.searchParams.get('token') !== token) {
+        socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+        return
+      }
+      if (!allowedVideoOrigin(request.headers.origin)) {
+        socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+        return
+      }
+      service.stream.handleUpgrade(request, socket, head)
+    } catch {
+      try { socket.destroy() } catch { /* ignore */ }
+    }
+  })
+  await new Promise((resolve, reject) => {
+    const onError = (error) => { server.off('listening', onListening); reject(error) }
+    const onListening = () => { server.off('error', onError); resolve() }
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(0, '127.0.0.1')
+  })
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : 0
+  videoRelay = { server, port, token, createdAt: Date.now() }
+  return videoRelay
+}
+
+async function videoRelayInfo() {
+  const relay = await ensureVideoRelay()
+  return {
+    ok: true,
+    url: `ws://127.0.0.1:${relay.port}/video?token=${relay.token}`,
+    port: relay.port,
+    note: '本地回环 WebSocket，仅当前面板会话使用；token 不写日志、不持久化。',
+  }
+}
+
+function disposeVideoRelay() {
+  if (videoRelay === undefined) return
+  try { videoRelay.server.close() } catch { /* ignore */ }
+  videoRelay = undefined
+}
+
 function createService() {
   reloadRuntimeConfig()
 
@@ -230,7 +309,12 @@ const PANEL_RESOURCE_META = {
   },
   ui: {
     csp: {
-      connectDomains: [],
+      connectDomains: [
+        'http://127.0.0.1:*',
+        'https://127.0.0.1:*',
+        'ws://127.0.0.1:*',
+        'wss://127.0.0.1:*',
+      ],
       resourceDomains: [],
       frameDomains: [],
       baseUriDomains: [],
@@ -276,7 +360,7 @@ const panelToolDef = {
     properties: {
       action: {
         type: 'string',
-        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect'],
+        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy'],
         description: 'Panel operation.',
       },
       serial: { type: 'string', description: 'Device serial for device-scoped actions.' },
@@ -512,6 +596,15 @@ const handlers = {
     if (action === 'pair') return toolResult(await service.humanCommand({ action: 'pair', host: args.host, port: args.port, code: args.code }))
     if (action === 'connect') return toolResult(await service.humanCommand({ action: 'connect', host: args.host, port: args.port }))
     if (action === 'disconnect') return toolResult(await service.humanCommand({ action: 'disconnect', host: args.host, port: args.port }))
+    if (action === 'videoInfo') return toolResult(await videoRelayInfo())
+    if (action === 'startVideo') {
+      const started = await service.humanCommand({ action: 'startVideo', serial: args.serial })
+      if (started.ok !== true) return toolResult(started)
+      return toolResult({ ...(await videoRelayInfo()), ...started, stream: service.stream.status() })
+    }
+    if (action === 'stopVideo') return toolResult(await service.humanCommand({ action: 'stopVideo' }))
+    if (action === 'startScrcpy') return toolResult(await service.humanCommand({ action: 'startScrcpy', serial: args.serial }))
+    if (action === 'stopScrcpy') return toolResult(await service.humanCommand({ action: 'stopScrcpy' }))
     return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
   },
 }
@@ -667,12 +760,14 @@ rl.on('line', (line) => {
 })
 
 rl.on('close', () => {
+  disposeVideoRelay()
   try { service.dispose() } catch { /* ignore */ }
   process.exit(0)
 })
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
+    disposeVideoRelay()
     try { service.dispose() } catch { /* ignore */ }
     process.exit(0)
   })

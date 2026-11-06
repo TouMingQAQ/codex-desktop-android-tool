@@ -95,6 +95,30 @@
     touch-action: none; user-select: none; -webkit-user-drag: none; cursor: crosshair;
   }
   #shot.ready { display: block; }
+  #videoCanvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+    display: none; touch-action: none; user-select: none; cursor: crosshair;
+  }
+  #videoCanvas.ready { display: block; }
+  .shot-wrap.live #shot { display: none; }
+  .gamepad-grid { display: flex; gap: 16px; justify-content: space-between; align-items: center; padding: 8px 4px; flex-wrap: wrap; }
+  .gp-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .gp-dpad { display: grid; grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 38px); gap: 3px; }
+  .gp-dpad button { padding: 0; border-radius: 8px; font-size: 15px; }
+  .gp-dpad .gp-up { grid-area: 1 / 2; } .gp-dpad .gp-left { grid-area: 2 / 1; }
+  .gp-dpad .gp-right { grid-area: 2 / 3; } .gp-dpad .gp-down { grid-area: 3 / 2; }
+  .gp-abxy { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(2, 40px); gap: 5px; }
+  .gp-abxy button { padding: 0; border-radius: 50%; font-weight: 700; }
+  .gp-abxy .gp-y { grid-area: 1 / 2; } .gp-abxy .gp-x { grid-area: 2 / 1; }
+  .gp-abxy .gp-b { grid-area: 2 / 3; } .gp-abxy .gp-a { grid-area: 2 / 2; }
+  .gp-stick { width: 86px; height: 86px; border-radius: 50%; border: 1px solid var(--btn-line); background: var(--btn); position: relative; touch-action: none; }
+  .gp-stick .gp-knob { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: var(--accent); opacity: .85; pointer-events: none; }
+  .gp-shoulders { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .gp-shoulders button, .gp-menu button { min-width: 42px; }
+  .gp-trigger { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; }
+  .gp-trigger input[type=range] { width: 74px; }
+  .gp-status { color: var(--muted); font-size: 11px; margin: 6px 0; }
+  .gp-dpad button.active, .gp-abxy button.active, .gp-shoulders button.active { background: var(--accent); color: #08110d; border-color: var(--accent); }
   .shot-hint {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #aeb7bd; font-size: 12px; text-align: center; padding: 16px; pointer-events: none;
@@ -175,7 +199,7 @@
     <div class="title">
       <span id="connDot" class="dot"></span>
       <strong>安卓设备</strong>
-      <span class="mode">截图模式 · 非实时视频</span>
+      <span id="modeLabel" class="mode">截图模式 · 非实时视频</span>
     </div>
     <span class="spacer"></span>
     <button id="btnRefreshDevices" type="button" title="重新扫描 adb 设备">刷新设备</button>
@@ -208,6 +232,7 @@
   <main class="screen">
     <div id="shotWrap" class="shot-wrap">
       <img id="shot" alt="安卓设备画面" draggable="false" />
+      <canvas id="videoCanvas" aria-label="实时画面"></canvas>
       <div id="shotHint" class="shot-hint">正在连接 Codex 宿主…</div>
       <div id="dragline" class="dragline"></div>
     </div>
@@ -217,6 +242,9 @@
     <button id="btnBack" type="button" disabled>返回</button>
     <button id="btnHome" type="button" disabled>Home</button>
     <button id="btnWake" type="button" disabled>唤醒</button>
+    <button id="btnLive" type="button" disabled>实时</button>
+    <button id="btnScrcpy" type="button" disabled>scrcpy 窗口</button>
+    <button id="btnGamepad" type="button" disabled>手柄</button>
     <span id="status" class="status">未连接</span>
   </footer>
   </section>
@@ -351,6 +379,64 @@
       </div>
     </div>
   </div>
+
+  <div id="gamepadOverlay" class="settings-overlay" hidden>
+    <div class="settings-card">
+      <div class="settings-head">
+        <strong>虚拟手柄</strong>
+        <span class="spacer"></span>
+        <select id="gpType" aria-label="手柄类型">
+          <option value="xbox">XBox</option>
+          <option value="ps">PlayStation</option>
+          <option value="switch">Switch</option>
+        </select>
+        <button id="btnGpClose" type="button">关闭</button>
+      </div>
+      <div id="gpStatus" class="gp-status">需要先开启实时视频（scrcpy UHID）</div>
+      <div class="gamepad-grid">
+        <div class="gp-side">
+          <div class="gp-dpad">
+            <button type="button" class="gp-up" data-gp="up">▲</button>
+            <button type="button" class="gp-left" data-gp="left">◀</button>
+            <button type="button" class="gp-right" data-gp="right">▶</button>
+            <button type="button" class="gp-down" data-gp="down">▼</button>
+          </div>
+          <div id="gpLstick" class="gp-stick"><div class="gp-knob"></div></div>
+          <span class="muted">左摇杆</span>
+        </div>
+        <div class="gp-side">
+          <div class="gp-shoulders">
+            <button type="button" data-gp="lb">LB</button>
+            <button type="button" data-gp="rb">RB</button>
+          </div>
+          <div class="gp-shoulders">
+            <label class="gp-trigger">LT<input id="gpLt" type="range" min="0" max="1" step="0.05" value="0" /></label>
+            <label class="gp-trigger">RT<input id="gpRt" type="range" min="0" max="1" step="0.05" value="0" /></label>
+          </div>
+          <div class="gp-shoulders gp-menu">
+            <button type="button" data-gp="back">Back</button>
+            <button type="button" data-gp="start">Start</button>
+            <button type="button" data-gp="guide">Guide</button>
+          </div>
+        </div>
+        <div class="gp-side">
+          <div class="gp-abxy">
+            <button type="button" class="gp-y" data-gp="y">Y</button>
+            <button type="button" class="gp-x" data-gp="x">X</button>
+            <button type="button" class="gp-b" data-gp="b">B</button>
+            <button type="button" class="gp-a" data-gp="a">A</button>
+          </div>
+          <div id="gpRstick" class="gp-stick"><div class="gp-knob"></div></div>
+          <span class="muted">右摇杆</span>
+        </div>
+      </div>
+      <div class="settings-actions">
+        <button id="btnGpReset" type="button">复位</button>
+        <button id="btnGpDisconnect" type="button">断连</button>
+        <span id="gpStatusRight" class="muted"></span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -360,17 +446,19 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.5' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.6' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
     connDot: document.getElementById('connDot'),
+    modeLabel: document.getElementById('modeLabel'),
     deviceSelect: document.getElementById('deviceSelect'),
     deviceMeta: document.getElementById('deviceMeta'),
     banner: document.getElementById('banner'),
     bannerText: document.getElementById('bannerText'),
     bannerAction: document.getElementById('bannerAction'),
     shot: document.getElementById('shot'),
+    videoCanvas: document.getElementById('videoCanvas'),
     shotHint: document.getElementById('shotHint'),
     shotWrap: document.getElementById('shotWrap'),
     dragline: document.getElementById('dragline'),
@@ -380,6 +468,20 @@
     btnBack: document.getElementById('btnBack'),
     btnHome: document.getElementById('btnHome'),
     btnWake: document.getElementById('btnWake'),
+    btnLive: document.getElementById('btnLive'),
+    btnScrcpy: document.getElementById('btnScrcpy'),
+    btnGamepad: document.getElementById('btnGamepad'),
+    gamepadOverlay: document.getElementById('gamepadOverlay'),
+    btnGpClose: document.getElementById('btnGpClose'),
+    btnGpReset: document.getElementById('btnGpReset'),
+    btnGpDisconnect: document.getElementById('btnGpDisconnect'),
+    gpType: document.getElementById('gpType'),
+    gpStatus: document.getElementById('gpStatus'),
+    gpStatusRight: document.getElementById('gpStatusRight'),
+    gpLstick: document.getElementById('gpLstick'),
+    gpRstick: document.getElementById('gpRstick'),
+    gpLt: document.getElementById('gpLt'),
+    gpRt: document.getElementById('gpRt'),
     wirelessOverlay: document.getElementById('wirelessOverlay'),
     wirelessTitle: document.getElementById('wirelessTitle'),
     btnWirelessClose: document.getElementById('btnWirelessClose'),
@@ -466,6 +568,19 @@
     qrTimer: null,
     qrToken: '',
     wirelessKind: '',
+    live: false,
+    videoWs: null,
+    videoDecoder: null,
+    videoCodec: '',
+    videoTimestamp: 0,
+    videoWidth: 0,
+    videoHeight: 0,
+    gpButtons: new Set(),
+    gpLstick: { x: 0, y: 0 },
+    gpRstick: { x: 0, y: 0 },
+    gpLt: 0,
+    gpRt: 0,
+    gpDragging: null,
   };
 
   var SETTINGS_FIELDS = [
@@ -582,6 +697,9 @@
     els.btnBack.disabled = busy || !hasDevice;
     els.btnHome.disabled = busy || !hasDevice;
     els.btnWake.disabled = busy || !hasDevice;
+    els.btnLive.disabled = busy || !hasDevice;
+    els.btnScrcpy.disabled = busy || !hasDevice;
+    els.btnGamepad.disabled = busy || !hasDevice;
   }
 
   function hasOnlineDevice() {
@@ -726,6 +844,7 @@
 
   async function selectDevice(serial) {
     if (!state.initialized) return;
+    if (state.live) await stopLive();
     setBusy(true);
     try {
       var result = await callTool('android_panel', { action: 'select', serial: serial || '' }, 15000);
@@ -746,6 +865,7 @@
   async function takeScreenshot(options) {
     var quiet = options && options.quiet;
     if (!state.initialized) return;
+    if (state.live) return;
     if (!state.selectedSerial) {
       hideHint('请先选择设备');
       return;
@@ -1256,19 +1376,294 @@
     }
   }
 
+  function setModeLabel(text) {
+    if (els.modeLabel) els.modeLabel.textContent = text;
+  }
+
+  function closeVideoSocket() {
+    if (state.videoWs) {
+      try { state.videoWs.close(); } catch (_) { /* ignore */ }
+      state.videoWs = null;
+    }
+    if (state.videoDecoder) {
+      try { state.videoDecoder.close(); } catch (_) { /* ignore */ }
+      state.videoDecoder = null;
+    }
+    state.videoCodec = '';
+    state.videoTimestamp = 0;
+    els.videoCanvas.classList.remove('ready');
+    els.shotWrap.classList.remove('live');
+  }
+
+  function ensureVideoDecoder(codec) {
+    var nextCodec = codec || state.videoCodec || 'avc1.42e01e';
+    if (state.videoDecoder && state.videoCodec === nextCodec) return state.videoDecoder;
+    if (state.videoDecoder) {
+      try { state.videoDecoder.close(); } catch (_) { /* ignore */ }
+      state.videoDecoder = null;
+    }
+    var decoder = new VideoDecoder({
+      output: function (frame) {
+        try {
+          var canvas = els.videoCanvas;
+          if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
+            canvas.width = frame.displayWidth;
+            canvas.height = frame.displayHeight;
+          }
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(frame, 0, 0);
+          state.videoWidth = frame.displayWidth;
+          state.videoHeight = frame.displayHeight;
+          canvas.classList.add('ready');
+          hideHint('');
+        } finally {
+          frame.close();
+        }
+      },
+      error: function (error) {
+        els.status.textContent = '视频解码失败：' + (error && error.message ? error.message : String(error));
+      },
+    });
+    try {
+      decoder.configure({ codec: nextCodec, optimizeForLatency: true, avc: { format: 'annexb' } });
+    } catch (_) {
+      decoder.configure({ codec: nextCodec, optimizeForLatency: true });
+    }
+    state.videoDecoder = decoder;
+    state.videoCodec = nextCodec;
+    return decoder;
+  }
+
+  function handleVideoFailure(message) {
+    if (!state.live) return;
+    state.live = false;
+    closeVideoSocket();
+    els.btnLive.textContent = '实时';
+    setModeLabel('截图模式 · 非实时视频');
+    showBanner('实时视频不可用：' + message + '。已回退到截图模式。', 'warn', '重试', function () { startLive(); });
+    takeScreenshot({ quiet: true });
+  }
+
+  function connectVideo(url) {
+    try {
+      var ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+      state.videoWs = ws;
+      ws.onopen = function () {
+        els.status.textContent = '实时视频已连接';
+        setConnected('ok', '实时视频');
+      };
+      ws.onmessage = function (event) {
+        if (typeof event.data === 'string') {
+          var message
+          try { message = JSON.parse(event.data) } catch (_) { return }
+          if (message.type === 'meta') {
+            if (message.codec) {
+              try { ensureVideoDecoder(message.codec) } catch (error) { handleVideoFailure('解码器初始化失败：' + (error && error.message ? error.message : String(error))); return }
+            }
+            if (message.width) state.videoWidth = message.width;
+            if (message.height) state.videoHeight = message.height;
+            if (message.serial) els.status.textContent = '实时视频 · ' + message.width + '×' + message.height;
+          } else if (message.type === 'gamepad') {
+            els.gpStatus.textContent = message.via === 'uhid' ? 'UHID 已连接' : (message.via === 'keyevent' ? 'adb 按键回退' : '等待手柄输入');
+          } else if (message.type === 'status' && message.running === false) {
+            handleVideoFailure(message.error || 'scrcpy 已停止');
+          }
+          return;
+        }
+        var bytes = new Uint8Array(event.data);
+        if (bytes.length < 9) return;
+        try {
+          var key = bytes[0] === 1;
+          var pts = new DataView(event.data).getFloat64(1);
+          var payload = bytes.subarray(9);
+          var decoder = ensureVideoDecoder(state.videoCodec || 'avc1.42e01e');
+          decoder.decode(new EncodedVideoChunk({
+            type: key ? 'key' : 'delta',
+            timestamp: Math.round(pts),
+            data: payload,
+          }));
+        } catch (error) {
+          els.status.textContent = '视频帧解码失败：' + (error && error.message ? error.message : String(error));
+        }
+      };
+      ws.onerror = function () {
+        handleVideoFailure('WebSocket 连接失败（宿主 CSP/回环可能被拦截）');
+      };
+      ws.onclose = function () {
+        if (state.live) handleVideoFailure('连接已关闭');
+      };
+    } catch (error) {
+      handleVideoFailure(error && error.message ? error.message : String(error));
+    }
+  }
+
+  async function startLive() {
+    if (!state.selectedSerial) { showBanner('请先选择设备', 'warn'); return; }
+    setBusy(true);
+    els.status.textContent = '启动实时视频…';
+    try {
+      var result = await callTool('android_panel', { action: 'startVideo', serial: state.selectedSerial }, 60000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动失败');
+      state.live = true;
+      els.btnLive.textContent = '停止实时';
+      setModeLabel('实时视频 · scrcpy');
+      els.shotWrap.classList.add('live');
+      els.shot.classList.remove('ready');
+      connectVideo(payload.url);
+    } catch (error) {
+      state.live = false;
+      closeVideoSocket();
+      els.btnLive.textContent = '实时';
+      setModeLabel('截图模式 · 非实时视频');
+      showBanner('实时视频启动失败：' + (error && error.message ? error.message : String(error)) + '。继续使用截图模式。', 'error', '重试', function () { startLive(); });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stopLive() {
+    state.live = false;
+    closeVideoSocket();
+    els.btnLive.textContent = '实时';
+    setModeLabel('截图模式 · 非实时视频');
+    try { await callTool('android_panel', { action: 'stopVideo' }, 15000); } catch (_) { /* ignore */ }
+    takeScreenshot({ quiet: true });
+  }
+
+  function gamepadReady() {
+    if (!state.live || !state.videoWs || state.videoWs.readyState !== 1) {
+      els.gpStatus.textContent = '需要先开启实时视频（scrcpy UHID）';
+      return false;
+    }
+    return true;
+  }
+
+  function sendGamepad() {
+    if (!gamepadReady()) return;
+    var payload = {
+      type: 'gamepad',
+      gamepad: {
+        buttons: Array.from(state.gpButtons),
+        lstick: state.gpLstick,
+        rstick: state.gpRstick,
+        lt: state.gpLt,
+        rt: state.gpRt,
+      },
+      source: 'manual',
+      gamepadType: els.gpType.value,
+    };
+    try {
+      state.videoWs.send(JSON.stringify(payload));
+      els.gpStatus.textContent = 'UHID 已连接 · 已发送';
+    } catch (error) {
+      els.gpStatus.textContent = '发送失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  function updateGpButtonVisual() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-gp]'), function (button) {
+      button.classList.toggle('active', state.gpButtons.has(button.getAttribute('data-gp')));
+    });
+  }
+
+  function resetGamepadState() {
+    state.gpButtons.clear();
+    state.gpLstick = { x: 0, y: 0 };
+    state.gpRstick = { x: 0, y: 0 };
+    state.gpLt = 0;
+    state.gpRt = 0;
+    els.gpLt.value = '0';
+    els.gpRt.value = '0';
+    var knobs = document.querySelectorAll('.gp-stick .gp-knob');
+    Array.prototype.forEach.call(knobs, function (knob) { knob.style.transform = ''; });
+    updateGpButtonVisual();
+  }
+
+  function openGamepad() {
+    els.gamepadOverlay.hidden = false;
+    els.gpStatus.textContent = state.live ? 'UHID 已连接' : '需要先开启实时视频（scrcpy UHID）';
+    sendGamepad();
+  }
+
+  function closeGamepad() {
+    els.gamepadOverlay.hidden = true;
+    resetGamepadState();
+  }
+
+  function disconnectGamepad() {
+    if (!gamepadReady()) return;
+    try {
+      state.videoWs.send(JSON.stringify({ type: 'gamepadDisconnect' }));
+      els.gpStatus.textContent = '已断连';
+      resetGamepadState();
+    } catch (error) {
+      els.gpStatus.textContent = '断连失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  function bindGamepadStick(element, which) {
+    if (!element) return;
+    element.addEventListener('pointerdown', function (event) {
+      event.preventDefault();
+      state.gpDragging = { element: element, which: which, rect: element.getBoundingClientRect() };
+      try { element.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+      moveGamepadStick(event);
+    });
+    element.addEventListener('pointermove', function (event) {
+      if (!state.gpDragging || state.gpDragging.element !== element) return;
+      moveGamepadStick(event);
+    });
+    var end = function (event) {
+      if (state.gpDragging && state.gpDragging.element === element) {
+        state.gpDragging = null;
+        try { element.releasePointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+      }
+    };
+    element.addEventListener('pointerup', end);
+    element.addEventListener('pointercancel', end);
+  }
+
+  function moveGamepadStick(event) {
+    var drag = state.gpDragging;
+    if (!drag) return;
+    var rect = drag.rect;
+    var radius = Math.min(rect.width, rect.height) / 2;
+    var dx = event.clientX - (rect.left + rect.width / 2);
+    var dy = event.clientY - (rect.top + rect.height / 2);
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len > radius && len > 0) { dx = dx / len * radius; dy = dy / len * radius; }
+    var x = dx / radius;
+    var y = -dy / radius;
+    if (drag.which === 'l') state.gpLstick = { x: Number(x.toFixed(3)), y: Number(y.toFixed(3)) };
+    else state.gpRstick = { x: Number(x.toFixed(3)), y: Number(y.toFixed(3)) };
+    var knob = drag.element.querySelector('.gp-knob');
+    if (knob) knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    sendGamepad();
+  }
+
+  function activeInputSurface() {
+    if (state.live && state.videoWidth > 0) {
+      return { el: els.videoCanvas, width: state.videoWidth, height: state.videoHeight };
+    }
+    return { el: els.shot, width: state.imageWidth, height: state.imageHeight };
+  }
+
   function pointerDown(event) {
-    if (!state.selectedSerial || !state.imageWidth) return;
+    var surface = activeInputSurface();
+    if (!state.selectedSerial || !surface.width) return;
     if (event.button !== undefined && event.button !== 0) return;
     var point = mapContainPoint({
       clientX: event.clientX,
       clientY: event.clientY,
-      rect: els.shot.getBoundingClientRect(),
-      imageWidth: state.imageWidth,
-      imageHeight: state.imageHeight,
+      rect: surface.el.getBoundingClientRect(),
+      imageWidth: surface.width,
+      imageHeight: surface.height,
     });
     if (!point) return;
     state.dragging = { start: { clientX: event.clientX, clientY: event.clientY, x: point.x, y: point.y }, pointerId: event.pointerId };
-    try { els.shot.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+    try { els.shotWrap.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
     els.dragline.style.display = 'none';
   }
 
@@ -1292,13 +1687,14 @@
     state.dragging = null;
     els.dragline.style.display = 'none';
     if (!drag) return;
-    try { els.shot.releasePointerCapture(drag.pointerId); } catch (_) { /* ignore */ }
+    try { els.shotWrap.releasePointerCapture(drag.pointerId); } catch (_) { /* ignore */ }
+    var surface = activeInputSurface();
     var endPoint = mapContainPoint({
       clientX: event.clientX,
       clientY: event.clientY,
-      rect: els.shot.getBoundingClientRect(),
-      imageWidth: state.imageWidth,
-      imageHeight: state.imageHeight,
+      rect: surface.el.getBoundingClientRect(),
+      imageWidth: surface.width,
+      imageHeight: surface.height,
     });
     if (isTap(drag.start, { clientX: event.clientX, clientY: event.clientY }, 8)) {
       runControl({ action: 'tap', x: drag.start.x, y: drag.start.y, capture: false }, '点击');
@@ -1373,6 +1769,12 @@
     stopPerfTimer();
     state.dragging = null;
     if (els.wirelessOverlay) els.wirelessOverlay.hidden = true;
+    if (els.gamepadOverlay) els.gamepadOverlay.hidden = true;
+    closeVideoSocket();
+    if (state.live) {
+      state.live = false;
+      void callTool('android_panel', { action: 'stopVideo' }, 10000).catch(function () {});
+    }
     stopQrTimer();
     pending.forEach(function (waiter) { waiter.reject(new Error('面板已关闭')); });
     pending.clear();
@@ -1419,15 +1821,61 @@
     els.btnWake.addEventListener('click', function () {
       runControl({ action: 'wake', capture: false }, '唤醒');
     });
+    els.btnLive.addEventListener('click', function () {
+      if (state.live) stopLive();
+      else startLive();
+    });
+    els.btnScrcpy.addEventListener('click', async function () {
+      if (!state.selectedSerial) { showBanner('请先选择设备', 'warn'); return; }
+      setBusy(true);
+      els.status.textContent = '正在打开 scrcpy 窗口…';
+      try {
+        var result = await callTool('android_panel', { action: 'startScrcpy', serial: state.selectedSerial }, 30000);
+        var payload = toolJson(result);
+        if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动失败');
+        els.status.textContent = 'scrcpy 窗口已启动';
+      } catch (error) {
+        showBanner('打开 scrcpy 窗口失败：' + (error && error.message ? error.message : String(error)), 'error');
+      } finally {
+        setBusy(false);
+      }
+    });
+    els.btnGamepad.addEventListener('click', openGamepad);
+    els.btnGpClose.addEventListener('click', closeGamepad);
+    els.btnGpReset.addEventListener('click', function () { resetGamepadState(); sendGamepad(); });
+    els.btnGpDisconnect.addEventListener('click', disconnectGamepad);
+    els.gpType.addEventListener('change', sendGamepad);
+    els.gpLt.addEventListener('input', function () { state.gpLt = Number(els.gpLt.value) || 0; sendGamepad(); });
+    els.gpRt.addEventListener('input', function () { state.gpRt = Number(els.gpRt.value) || 0; sendGamepad(); });
+    els.gamepadOverlay.addEventListener('pointerdown', function (event) {
+      var button = event.target.closest('[data-gp]');
+      if (!button) return;
+      event.preventDefault();
+      state.gpButtons.add(button.getAttribute('data-gp'));
+      updateGpButtonVisual();
+      try { button.setPointerCapture(event.pointerId); } catch (_) { /* ignore */ }
+      sendGamepad();
+    });
+    var releaseGp = function (event) {
+      var button = event.target.closest('[data-gp]');
+      if (!button) return;
+      state.gpButtons.delete(button.getAttribute('data-gp'));
+      updateGpButtonVisual();
+      sendGamepad();
+    };
+    els.gamepadOverlay.addEventListener('pointerup', releaseGp);
+    els.gamepadOverlay.addEventListener('pointercancel', releaseGp);
+    bindGamepadStick(els.gpLstick, 'l');
+    bindGamepadStick(els.gpRstick, 'r');
     els.deviceSelect.addEventListener('change', function () {
       if (state.suppressChange) return;
       selectDevice(els.deviceSelect.value);
     });
-    els.shot.addEventListener('pointerdown', pointerDown);
-    els.shot.addEventListener('pointermove', pointerMove);
-    els.shot.addEventListener('pointerup', pointerUp);
-    els.shot.addEventListener('pointercancel', pointerCancel);
-    els.shot.addEventListener('lostpointercapture', pointerCancel);
+    els.shotWrap.addEventListener('pointerdown', pointerDown);
+    els.shotWrap.addEventListener('pointermove', pointerMove);
+    els.shotWrap.addEventListener('pointerup', pointerUp);
+    els.shotWrap.addEventListener('pointercancel', pointerCancel);
+    els.shotWrap.addEventListener('lostpointercapture', pointerCancel);
 
     window.addEventListener('message', onHostMessage);
     window.addEventListener('pagehide', cleanup);

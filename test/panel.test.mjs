@@ -82,7 +82,7 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
     assert.ok(panel.inputSchema.properties.q, 'android_panel 应支持 logcat 关键字参数')
     assert.ok(panel.inputSchema.properties.pkg, 'android_panel 应支持 logcat 包名参数')
-    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect'])
+    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
     assert.ok(!/pushed to the right-side/i.test(view.description), 'android_view 不应再宣称自动推送到面板')
@@ -113,12 +113,13 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.ok(content.text.includes('扫码配对') && content.text.includes('配对码配对') && content.text.includes('IP 直连'), '应保留无线配对入口')
     assert.ok(content.text.includes('qrPairStart') && content.text.includes('qrPairImage'), '扫码配对应走宿主工具桥')
     assert.ok(content.text.includes('logcatPkg') && content.text.includes('logcatKeyword'), 'Logcat 应有包名和关键字筛选输入')
+    assert.ok(content.text.includes('id="videoCanvas"') && content.text.includes('id="btnLive"'), '面板应包含实时视频 canvas 和按钮')
+    assert.ok(content.text.includes('id="gamepadOverlay"') && content.text.includes('data-gp="a"'), '面板应包含手柄 UI')
 
-    // 面板只通过宿主 tools/call 通信，不自己开本地网络端口。
+    // 面板默认走宿主 tools/call；实时视频允许回环 WebSocket，但不能用 fetch/XHR。
     assert.ok(!/\bfetch\s*\(/.test(content.text), '面板不应使用 fetch')
     assert.ok(!/XMLHttpRequest/.test(content.text), '面板不应使用 XMLHttpRequest')
-    assert.ok(!/new\s+WebSocket\s*\(/.test(content.text), '面板不应使用 WebSocket')
-    assert.ok(!/127\.0\.0\.1|localhost/.test(content.text), '面板不应引用本地地址')
+    assert.ok(/new\s+WebSocket\s*\(/.test(content.text), '实时视频应使用 WebSocket')
     assert.ok(content.text.includes("addEventListener('pagehide'"), '面板应在关闭时清理计时器/请求')
     assert.ok(content.text.includes("addEventListener('message'"), '面板应只听宿主 postMessage')
     assert.ok(content.text.includes('ui/initialize'), '面板应实现 MCP Apps 的 ui/initialize')
@@ -222,6 +223,20 @@ test('android_panel 扫码配对：生成二维码、查询、取消', async () 
     const cancel = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'qrPairCancel', token: startPayload.token } }, 15000)
     const cancelPayload = JSON.parse(cancel.content[0].text)
     assert.equal(cancelPayload.ok, true)
+  } finally {
+    srv.stop()
+  }
+})
+
+test('android_panel videoInfo 返回回环 WebSocket 地址和端口', async () => {
+  const srv = startServer()
+  try {
+    await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })
+    const result = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'videoInfo' } }, 15000)
+    const payload = JSON.parse(result.content[0].text)
+    assert.equal(payload.ok, true)
+    assert.match(payload.url, /^ws:\/\/127\.0\.0\.1:\d+\/video\?token=[0-9a-f]+$/)
+    assert.ok(payload.port > 0)
   } finally {
     srv.stop()
   }
