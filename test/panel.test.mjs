@@ -82,7 +82,7 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
     assert.ok(panel.inputSchema.properties.q, 'android_panel 应支持 logcat 关键字参数')
     assert.ok(panel.inputSchema.properties.pkg, 'android_panel 应支持 logcat 包名参数')
-    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy'])
+    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy', 'gamepad', 'gamepadDisconnect'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
     assert.ok(!/pushed to the right-side/i.test(view.description), 'android_view 不应再宣称自动推送到面板')

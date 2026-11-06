@@ -44,7 +44,7 @@ codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.7`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.8`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 

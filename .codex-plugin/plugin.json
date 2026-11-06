@@ -1,6 +1,6 @@
 {
   "name": "codex-desktop-android-tool",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Control an Android device from ChatGPT desktop / Codex: screenshots, taps, swipes, text input, device state, adb and AAB to APK.",
   "skills": "./skills",
   "mcpServers": "./mcp.json",

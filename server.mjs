@@ -24,7 +24,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.7'
+const SERVER_VERSION = '0.2.8'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -360,7 +360,7 @@ const panelToolDef = {
     properties: {
       action: {
         type: 'string',
-        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy'],
+        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect', 'startVideo', 'stopVideo', 'videoInfo', 'startScrcpy', 'stopScrcpy', 'gamepad', 'gamepadDisconnect'],
         description: 'Panel operation.',
       },
       serial: { type: 'string', description: 'Device serial for device-scoped actions.' },
@@ -373,6 +373,8 @@ const panelToolDef = {
       host: { type: 'string', description: 'Wireless host for pair/connect/disconnect.' },
       port: { type: 'integer', description: 'Wireless port for pair/connect/disconnect.' },
       code: { type: 'string', description: 'Six-digit pairing code for action=pair.' },
+      gamepad: { type: 'object', additionalProperties: true, description: 'Gamepad state: buttons / lstick / rstick / lt / rt.' },
+      gamepadType: { type: 'string', description: 'Gamepad type: xbox / ps / switch.' },
       config: {
         type: 'object',
         additionalProperties: false,
@@ -605,6 +607,15 @@ const handlers = {
     if (action === 'stopVideo') return toolResult(await service.humanCommand({ action: 'stopVideo' }))
     if (action === 'startScrcpy') return toolResult(await service.humanCommand({ action: 'startScrcpy', serial: args.serial }))
     if (action === 'stopScrcpy') return toolResult(await service.humanCommand({ action: 'stopScrcpy' }))
+    if (action === 'gamepad') {
+      return toolResult(await service.setGamepad({
+        serial: args.serial,
+        gamepad: args.gamepad ?? {},
+        gamepadType: args.gamepadType,
+        source: 'manual',
+      }))
+    }
+    if (action === 'gamepadDisconnect') return toolResult(await service.disconnectGamepad({ serial: args.serial }))
     return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
   },
 }

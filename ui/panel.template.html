@@ -447,7 +447,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.7' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.8' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -587,6 +587,7 @@
     gpLt: 0,
     gpRt: 0,
     gpDragging: null,
+    gpSendTimer: null,
   };
 
   var SETTINGS_FIELDS = [
@@ -1564,61 +1565,40 @@
   }
 
   function gamepadReady() {
-    if (!state.videoWs || state.videoWs.readyState !== 1) {
-      els.gpStatus.textContent = '手柄控制未连接';
+    if (!state.selectedSerial) {
+      els.gpStatus.textContent = '请先选择设备';
       return false;
     }
     return true;
   }
 
-  async function ensureControlStream() {
-    if (state.videoWs && state.videoWs.readyState === 1) return true;
-    if (!state.selectedSerial) {
-      els.gpStatus.textContent = '请先选择设备';
-      return false;
-    }
-    setBusy(true);
-    els.gpStatus.textContent = '启动手柄控制…';
-    try {
-      var result = await callTool('android_panel', { action: 'startVideo', serial: state.selectedSerial }, 120000);
-      var payload = toolJson(result);
-      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动失败');
-      state.controlOnly = true;
-      state.live = false;
-      connectVideo(payload.url, true);
-      var deadline = Date.now() + 5000;
-      while (Date.now() < deadline) {
-        if (state.videoWs && state.videoWs.readyState === 1) return true;
-        await new Promise(function (resolve) { setTimeout(resolve, 120); });
-      }
-      throw new Error('连接超时（宿主可能拦截了回环 WebSocket）');
-    } catch (error) {
-      els.gpStatus.textContent = '手柄控制启动失败：' + (error && error.message ? error.message : String(error));
-      state.controlOnly = false;
-      closeVideoSocket();
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function sendGamepad() {
     if (!gamepadReady()) return;
-    var payload = {
-      type: 'gamepad',
-      gamepad: {
-        buttons: Array.from(state.gpButtons),
-        lstick: state.gpLstick,
-        rstick: state.gpRstick,
-        lt: state.gpLt,
-        rt: state.gpRt,
-      },
-      source: 'manual',
-      gamepadType: els.gpType.value,
-    };
+    if (state.gpSendTimer) return;
+    state.gpSendTimer = setTimeout(function () {
+      state.gpSendTimer = null;
+      void sendGamepadNow();
+    }, 50);
+  }
+
+  async function sendGamepadNow() {
+    if (!state.selectedSerial) return;
     try {
-      state.videoWs.send(JSON.stringify(payload));
-      els.gpStatus.textContent = 'UHID 已连接 · 已发送';
+      var result = await callTool('android_panel', {
+        action: 'gamepad',
+        serial: state.selectedSerial,
+        gamepad: {
+          buttons: Array.from(state.gpButtons),
+          lstick: state.gpLstick,
+          rstick: state.gpRstick,
+          lt: state.gpLt,
+          rt: state.gpRt,
+        },
+        gamepadType: els.gpType.value,
+      }, 30000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '发送失败');
+      els.gpStatus.textContent = payload.via === 'uhid' ? 'UHID 已连接' : 'adb 按键回退（摇杆/扳机不可用）';
     } catch (error) {
       els.gpStatus.textContent = '发送失败：' + (error && error.message ? error.message : String(error));
     }
@@ -1645,25 +1625,20 @@
 
   async function openGamepad() {
     els.gamepadOverlay.hidden = false;
-    els.gpStatus.textContent = '准备手柄控制…';
-    var ready = await ensureControlStream();
-    if (ready) sendGamepad();
+    els.gpStatus.textContent = '首次输入会启动 scrcpy 控制流…';
+    await sendGamepadNow();
   }
 
   async function closeGamepad() {
     els.gamepadOverlay.hidden = true;
     resetGamepadState();
-    if (state.controlOnly) {
-      state.controlOnly = false;
-      closeVideoSocket();
-      try { await callTool('android_panel', { action: 'stopVideo' }, 15000); } catch (_) { /* ignore */ }
-    }
+    try { await callTool('android_panel', { action: 'stopVideo' }, 15000); } catch (_) { /* ignore */ }
   }
 
-  function disconnectGamepad() {
-    if (!gamepadReady()) return;
+  async function disconnectGamepad() {
+    if (!state.selectedSerial) return;
     try {
-      state.videoWs.send(JSON.stringify({ type: 'gamepadDisconnect' }));
+      await callTool('android_panel', { action: 'gamepadDisconnect', serial: state.selectedSerial }, 15000);
       els.gpStatus.textContent = '已断连';
       resetGamepadState();
     } catch (error) {
@@ -1858,6 +1833,7 @@
   function cleanup() {
     if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
     if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
+    if (state.gpSendTimer) { clearTimeout(state.gpSendTimer); state.gpSendTimer = null; }
     stopLogcatTimer();
     stopPerfTimer();
     state.dragging = null;
