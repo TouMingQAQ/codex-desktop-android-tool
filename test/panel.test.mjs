@@ -80,7 +80,7 @@ test('MCP 握手、5 个原工具保留、android_panel 带 thread UI 元数据'
     assert.deepEqual(panel._meta['openai/ui'].entrypoints, [{ type: 'thread' }])
     assert.equal(panel._meta['openai/ui'].preferredModelDisplayMode, 'inline')
     assert.ok(panel.inputSchema.properties.config, 'android_panel 应支持 config 参数')
-    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample'])
+    assert.deepEqual(panel.inputSchema.properties.action.enum, ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect'])
 
     const view = list.tools.find((tool) => tool.name === 'android_view')
     assert.ok(!/pushed to the right-side/i.test(view.description), 'android_view 不应再宣称自动推送到面板')
@@ -107,6 +107,9 @@ test('resources/list 与 resources/read 返回 MCP App HTML', async () => {
     assert.ok(content.text.includes('<title>安卓设备</title>'))
     assert.ok(content.text.includes('function mapContainPoint'), '面板应内联坐标映射源码')
     assert.ok(content.text.includes('Logcat') && content.text.includes('性能') && content.text.includes('AAB→APK'), '面板应包含 Logcat / 性能 / AAB 标签')
+    assert.ok(content.text.includes('data-tab="settings"'), '设置应是独立 Tab')
+    assert.ok(content.text.includes('扫码配对') && content.text.includes('配对码配对') && content.text.includes('IP 直连'), '应保留无线配对入口')
+    assert.ok(content.text.includes('qrPairStart') && content.text.includes('qrPairImage'), '扫码配对应走宿主工具桥')
 
     // 面板只通过宿主 tools/call 通信，不自己开本地网络端口。
     assert.ok(!/\bfetch\s*\(/.test(content.text), '面板不应使用 fetch')
@@ -192,6 +195,32 @@ test('android_panel getConfig / saveConfig 写入用户配置并热更新', asyn
   } finally {
     srv.stop()
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('android_panel 扫码配对：生成二维码、查询、取消', async () => {
+  const srv = startServer()
+  try {
+    await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })
+    const start = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'qrPairStart' } }, 30000)
+    const startPayload = JSON.parse(start.content[0].text)
+    assert.equal(startPayload.ok, true)
+    assert.ok(typeof startPayload.token === 'string' && startPayload.token.length > 0)
+
+    const status = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'qrPairStatus', token: startPayload.token } }, 15000)
+    const statusPayload = JSON.parse(status.content[0].text)
+    assert.equal(statusPayload.ok, true)
+    assert.ok(['waiting', 'pairing', 'connecting'].includes(statusPayload.status))
+
+    const image = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'qrPairImage', token: startPayload.token } }, 15000)
+    const imageItem = image.content.find((item) => item.type === 'image')
+    assert.ok(imageItem && imageItem.data.length > 100, 'qrPairImage 应返回 PNG')
+
+    const cancel = await srv.request('tools/call', { name: 'android_panel', arguments: { action: 'qrPairCancel', token: startPayload.token } }, 15000)
+    const cancelPayload = JSON.parse(cancel.content[0].text)
+    assert.equal(cancelPayload.ok, true)
+  } finally {
+    srv.stop()
   }
 })
 

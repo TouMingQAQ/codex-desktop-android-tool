@@ -26,9 +26,9 @@
 
 打开方式：在 Codex 会话里安装并启用本插件后，右侧面板会出现「安卓设备」标签；若没有出现，按下面的故障排查检查功能开关与插件版本。
 
-面板标签：**设备 / Logcat / 性能 / AAB→APK**。
+面板标签：**设备 / Logcat / 性能 / AAB→APK / 设置**。
 
-已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；Logcat 启动/停止/级别过滤/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单。
+已实现：设备列表与显式选择、截图与手动刷新、点击/滑动/返回/Home/唤醒、错误/未授权/离线/息屏提示、横竖屏坐标映射（`object-fit: contain` 留边不上报输入）、面板关闭时清理计时器与未完成请求；Logcat 启动/停止/级别过滤/导出；CPU/内存/GPU/电池性能采样；AAB→APK 转换表单；设置 Tab 内可改插件配置，并保留扫码配对 / 配对码配对 / IP 直连三种无线调试弹窗。
 
 未实现：实时视频（当前是截图刷新，不是实时视频）。
 
@@ -44,7 +44,7 @@ codex plugin marketplace add "<本插件仓库路径>"
 codex plugin add codex-desktop-android-tool@codex-work-plugins
 ```
 
-安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.3`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
+安装产物落在 `<CODEX_HOME>\plugins\cache\codex-work-plugins\codex-desktop-android-tool\0.2.4`，并自动启用。然后在 ChatGPT 桌面应用的 Codex 模式里开始新会话，输入 `@` 或 `$` 选择插件/技能。
 
 ### 方式 2：直接配 MCP server
 
@@ -99,7 +99,7 @@ codex plugin add codex-desktop-android-tool@codex-work-plugins
 
 ## 配置
 
-在 Codex 的「安卓设备」右侧面板右上角点 **设置**，可直接在桌面端里改 adb 路径、无线调试、视频参数、数据目录、AAB 工作目录等；保存后写入用户配置文件并**立即热更新**，不需要重启 MCP 服务。
+在 Codex 的「安卓设备」右侧面板打开 **设置 Tab**，可直接在桌面端里改 adb 路径、无线调试、视频参数、数据目录、AAB 工作目录等；保存后写入用户配置文件并**立即热更新**，不需要重启 MCP 服务。设置 Tab 里还有「扫码配对 / 配对码配对 / IP 直连」三种无线调试弹窗。
 
 优先级：环境变量 > `%USERPROFILE%\.codex-android-tool\config.json` > 插件目录 `config.json` > 默认值。
 

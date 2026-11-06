@@ -22,7 +22,7 @@ import { buildTools } from './lib/tools.js'
 
 const ROOT = dirname(fileURLToPath(import.meta.url))
 const SERVER_NAME = 'codex-desktop-android-tool'
-const SERVER_VERSION = '0.2.3'
+const SERVER_VERSION = '0.2.4'
 const DEFAULT_PROTOCOL_VERSION = '2025-06-18'
 
 // ── 配置 ────────────────────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ const panelToolDef = {
     properties: {
       action: {
         type: 'string',
-        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample'],
+        enum: ['state', 'select', 'refreshDevices', 'getConfig', 'saveConfig', 'logcatStart', 'logcatStop', 'logcatRead', 'exportLogcat', 'perfSample', 'qrPairStart', 'qrPairStatus', 'qrPairCancel', 'qrPairImage', 'pair', 'connect', 'disconnect'],
         description: 'Panel operation.',
       },
       serial: { type: 'string', description: 'Device serial for device-scoped actions.' },
@@ -284,6 +284,10 @@ const panelToolDef = {
       limit: { type: 'integer', description: 'Logcat max lines to return.' },
       level: { type: 'string', description: 'Logcat minimum level: V/D/I/W/E/F/S.' },
       pkg: { type: 'string', description: 'Package name for performance sampling.' },
+      token: { type: 'string', description: 'QR pairing session token.' },
+      host: { type: 'string', description: 'Wireless host for pair/connect/disconnect.' },
+      port: { type: 'integer', description: 'Wireless port for pair/connect/disconnect.' },
+      code: { type: 'string', description: 'Six-digit pairing code for action=pair.' },
       config: {
         type: 'object',
         additionalProperties: false,
@@ -494,6 +498,17 @@ const handlers = {
     }
     if (action === 'exportLogcat') return toolResult(await service.exportLogcat({ serial: args.serial, level: args.level }))
     if (action === 'perfSample') return toolResult(await service.perfSample({ serial: args.serial, pkg: args.pkg }))
+    if (action === 'qrPairStart') return toolResult(await service.humanCommand({ action: 'qrPairStart' }))
+    if (action === 'qrPairStatus') return toolResult(await service.humanCommand({ action: 'qrPairStatus', token: args.token }))
+    if (action === 'qrPairCancel') return toolResult(await service.humanCommand({ action: 'qrPairCancel', token: args.token }))
+    if (action === 'qrPairImage') {
+      const image = service.qrPairingImage(args.token)
+      if (image === undefined) return toolResult({ ok: false, error: '二维码已失效或不存在。' })
+      return toolResult({ ok: true, token: String(args.token ?? '') }, image)
+    }
+    if (action === 'pair') return toolResult(await service.humanCommand({ action: 'pair', host: args.host, port: args.port, code: args.code }))
+    if (action === 'connect') return toolResult(await service.humanCommand({ action: 'connect', host: args.host, port: args.port }))
+    if (action === 'disconnect') return toolResult(await service.humanCommand({ action: 'disconnect', host: args.host, port: args.port }))
     return toolResult({ ok: false, error: `未知 action：${action || '(空)'}` })
   },
 }

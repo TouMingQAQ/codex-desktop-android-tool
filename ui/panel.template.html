@@ -178,7 +178,6 @@
       <span class="mode">截图模式 · 非实时视频</span>
     </div>
     <span class="spacer"></span>
-    <button id="btnSettings" type="button" title="插件设置">设置</button>
     <button id="btnRefreshDevices" type="button" title="重新扫描 adb 设备">刷新设备</button>
     <button id="btnShot" type="button" title="重新抓取当前画面" disabled>刷新画面</button>
   </header>
@@ -188,6 +187,7 @@
     <button type="button" data-tab="logcat">Logcat</button>
     <button type="button" data-tab="perf">性能</button>
     <button type="button" data-tab="aab">AAB→APK</button>
+    <button type="button" data-tab="settings">设置</button>
   </nav>
 
   <section id="paneDevice" class="pane active">
@@ -270,13 +270,8 @@
     </div>
   </section>
 
-  <div id="settingsOverlay" class="settings-overlay" hidden>
-    <div class="settings-card">
-      <div class="settings-head">
-        <strong>安卓设备设置</strong>
-        <span class="spacer"></span>
-        <button id="btnSettingsClose" type="button">关闭</button>
-      </div>
+  <section id="paneSettings" class="pane" hidden>
+    <div class="form-pane">
       <div id="settingsNote" class="settings-note">读取中…</div>
       <div class="settings-grid">
         <label for="cfgAdbPath">adb 路径</label>
@@ -308,6 +303,50 @@
         <button id="btnSettingsSave" type="button">保存</button>
         <span id="settingsStatus" class="muted"></span>
       </div>
+      <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:12px">
+        <strong style="font-size:13px">无线调试</strong>
+        <div class="pane-toolbar" style="border:0;padding:8px 0;background:transparent">
+          <button id="btnQrPair" type="button">扫码配对</button>
+          <button id="btnPairCode" type="button">配对码配对</button>
+          <button id="btnIpConnect" type="button">IP 直连</button>
+        </div>
+        <div class="settings-note">Android 11+ 推荐「扫码配对」；之后日常用「IP 直连」。无线配对码只在配对时用一次，不保存。</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="wirelessOverlay" class="settings-overlay" hidden>
+    <div class="settings-card">
+      <div class="settings-head">
+        <strong id="wirelessTitle">无线调试</strong>
+        <span class="spacer"></span>
+        <button id="btnWirelessClose" type="button">关闭</button>
+      </div>
+      <div id="qrDialog" hidden>
+        <p class="settings-note">手机打开「开发者选项 → 无线调试 → 使用二维码配对设备」，扫描下面的二维码。手机和电脑要在同一个 Wi-Fi 下。</p>
+        <div style="display:flex;justify-content:center;background:#fff;border-radius:8px;padding:8px;margin:8px 0">
+          <img id="qrImage" alt="ADB 配对二维码" style="width:220px;height:220px;object-fit:contain" />
+        </div>
+        <div id="qrStatus" class="settings-note">正在生成二维码…</div>
+        <div class="form-actions"><button id="btnQrAgain" type="button">重新生成</button></div>
+      </div>
+      <div id="pairDialog" hidden>
+        <p class="settings-note">手机「无线调试 → 使用配对码配对设备」会显示 IP、配对端口和六位配对码。</p>
+        <div class="form-grid">
+          <label for="pairHost">设备 IP</label><input id="pairHost" type="text" placeholder="如 192.168.1.20" />
+          <label for="pairPort">配对端口</label><input id="pairPort" type="number" placeholder="配对页面显示的端口" />
+          <label for="pairCode">配对码</label><input id="pairCode" type="text" placeholder="六位配对码" />
+        </div>
+        <div class="form-actions"><button id="btnDoPair" type="button">配对</button><span id="pairOutput" class="muted"></span></div>
+      </div>
+      <div id="connectDialog" hidden>
+        <p class="settings-note">填写手机「无线调试」页面显示的 IP 与连接端口（常见 5555）。</p>
+        <div class="form-grid">
+          <label for="connectHost">设备 IP</label><input id="connectHost" type="text" placeholder="如 192.168.1.20" />
+          <label for="connectPort">连接端口</label><input id="connectPort" type="number" placeholder="5555" />
+        </div>
+        <div class="form-actions"><button id="btnDoConnect" type="button">连接</button><span id="connectOutput" class="muted"></span></div>
+      </div>
     </div>
   </div>
 </div>
@@ -319,7 +358,7 @@
   'use strict';
 
   var HOST_PROTOCOL = '2025-06-18';
-  var APP_INFO = { name: 'android-tool-panel', version: '0.2.3' };
+  var APP_INFO = { name: 'android-tool-panel', version: '0.2.4' };
   var RPC_TIMEOUT_MS = 20000;
 
   var els = {
@@ -334,14 +373,32 @@
     shotWrap: document.getElementById('shotWrap'),
     dragline: document.getElementById('dragline'),
     status: document.getElementById('status'),
-    btnSettings: document.getElementById('btnSettings'),
     btnRefreshDevices: document.getElementById('btnRefreshDevices'),
     btnShot: document.getElementById('btnShot'),
     btnBack: document.getElementById('btnBack'),
     btnHome: document.getElementById('btnHome'),
     btnWake: document.getElementById('btnWake'),
-    settingsOverlay: document.getElementById('settingsOverlay'),
-    btnSettingsClose: document.getElementById('btnSettingsClose'),
+    wirelessOverlay: document.getElementById('wirelessOverlay'),
+    wirelessTitle: document.getElementById('wirelessTitle'),
+    btnWirelessClose: document.getElementById('btnWirelessClose'),
+    qrDialog: document.getElementById('qrDialog'),
+    qrImage: document.getElementById('qrImage'),
+    qrStatus: document.getElementById('qrStatus'),
+    btnQrAgain: document.getElementById('btnQrAgain'),
+    btnQrPair: document.getElementById('btnQrPair'),
+    pairDialog: document.getElementById('pairDialog'),
+    pairHost: document.getElementById('pairHost'),
+    pairPort: document.getElementById('pairPort'),
+    pairCode: document.getElementById('pairCode'),
+    btnDoPair: document.getElementById('btnDoPair'),
+    pairOutput: document.getElementById('pairOutput'),
+    btnPairCode: document.getElementById('btnPairCode'),
+    connectDialog: document.getElementById('connectDialog'),
+    connectHost: document.getElementById('connectHost'),
+    connectPort: document.getElementById('connectPort'),
+    btnDoConnect: document.getElementById('btnDoConnect'),
+    connectOutput: document.getElementById('connectOutput'),
+    btnIpConnect: document.getElementById('btnIpConnect'),
     btnSettingsSave: document.getElementById('btnSettingsSave'),
     settingsNote: document.getElementById('settingsNote'),
     settingsStatus: document.getElementById('settingsStatus'),
@@ -362,6 +419,7 @@
     paneLogcat: document.getElementById('paneLogcat'),
     panePerf: document.getElementById('panePerf'),
     paneAab: document.getElementById('paneAab'),
+    paneSettings: document.getElementById('paneSettings'),
     btnLogcatStart: document.getElementById('btnLogcatStart'),
     btnLogcatStop: document.getElementById('btnLogcatStop'),
     btnLogcatRefresh: document.getElementById('btnLogcatRefresh'),
@@ -401,6 +459,9 @@
     perfTimer: null,
     perfBusy: false,
     aabBusy: false,
+    qrTimer: null,
+    qrToken: '',
+    wirelessKind: '',
   };
 
   var SETTINGS_FIELDS = [
@@ -783,8 +844,7 @@
     return out;
   }
 
-  async function openSettings() {
-    els.settingsOverlay.hidden = false;
+  async function loadSettings() {
     els.settingsStatus.textContent = '';
     els.settingsNote.textContent = '读取中…';
     try {
@@ -801,10 +861,6 @@
       els.settingsNote.textContent = '读取配置失败：' + (error && error.message ? error.message : String(error));
       els.settingsStatus.textContent = '读取失败';
     }
-  }
-
-  function closeSettings() {
-    els.settingsOverlay.hidden = true;
   }
 
   async function saveSettings() {
@@ -824,6 +880,148 @@
     }
   }
 
+  function stopQrTimer() {
+    if (state.qrTimer) { clearInterval(state.qrTimer); state.qrTimer = null; }
+  }
+
+  function openWireless(kind) {
+    state.wirelessKind = kind;
+    els.wirelessOverlay.hidden = false;
+    els.qrDialog.hidden = kind !== 'qr';
+    els.pairDialog.hidden = kind !== 'pair';
+    els.connectDialog.hidden = kind !== 'connect';
+    els.pairOutput.textContent = '';
+    els.connectOutput.textContent = '';
+    var host = String(els.cfgWirelessHost.value || '').trim();
+    var port = String(els.cfgWirelessPort.value || '').trim();
+    if (kind === 'qr') {
+      els.wirelessTitle.textContent = '扫码配对';
+      startQrPairing();
+    } else if (kind === 'pair') {
+      els.wirelessTitle.textContent = '配对码配对';
+      els.pairHost.value = host;
+      els.pairPort.value = '';
+      els.pairCode.value = '';
+    } else {
+      els.wirelessTitle.textContent = 'IP 直连';
+      els.connectHost.value = host;
+      els.connectPort.value = port || '5555';
+    }
+  }
+
+  function closeWireless() {
+    stopQrTimer();
+    if (state.qrToken) {
+      var token = state.qrToken;
+      state.qrToken = '';
+      void callTool('android_panel', { action: 'qrPairCancel', token: token }, 10000).catch(function () {});
+    }
+    els.wirelessOverlay.hidden = true;
+    state.wirelessKind = '';
+  }
+
+  async function loadQrImage() {
+    if (!state.qrToken) return;
+    try {
+      var result = await callTool('android_panel', { action: 'qrPairImage', token: state.qrToken }, 15000);
+      var image = toolImage(result);
+      if (!image) throw new Error(toolText(result) || '二维码不可用');
+      if (image.dataUrl) els.qrImage.src = image.data;
+      else els.qrImage.src = 'data:' + (image.mimeType || 'image/png') + ';base64,' + image.data;
+    } catch (error) {
+      els.qrStatus.textContent = '生成二维码失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  async function pollQrStatus() {
+    if (!state.qrToken) return;
+    try {
+      var result = await callTool('android_panel', { action: 'qrPairStatus', token: state.qrToken }, 10000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '查询失败');
+      els.qrStatus.textContent = (payload.message || payload.status || '') +
+        (payload.remainingMs === undefined ? '' : '（剩余 ' + Math.ceil(payload.remainingMs / 1000) + ' 秒）');
+      if (['connected', 'paired', 'failed', 'timeout'].indexOf(payload.status) >= 0) {
+        stopQrTimer();
+        state.qrToken = '';
+        refreshState({ quiet: false });
+      }
+    } catch (error) {
+      els.qrStatus.textContent = '查询失败：' + (error && error.message ? error.message : String(error));
+      stopQrTimer();
+    }
+  }
+
+  async function startQrPairing() {
+    stopQrTimer();
+    state.qrToken = '';
+    els.qrStatus.textContent = '正在生成二维码…';
+    els.qrImage.removeAttribute('src');
+    try {
+      var result = await callTool('android_panel', { action: 'qrPairStart' }, 20000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '启动扫码配对失败');
+      state.qrToken = payload.token || '';
+      els.qrStatus.textContent = payload.message || '等待手机扫描二维码…';
+      await loadQrImage();
+      state.qrTimer = setInterval(function () {
+        if (state.wirelessKind !== 'qr' || document.hidden) return;
+        pollQrStatus();
+      }, 1200);
+      pollQrStatus();
+    } catch (error) {
+      els.qrStatus.textContent = '启动失败：' + (error && error.message ? error.message : String(error));
+    }
+  }
+
+  async function doPair() {
+    var host = els.pairHost.value.trim();
+    var port = Number(els.pairPort.value);
+    var code = els.pairCode.value.trim();
+    if (!host || !port || !code) {
+      els.pairOutput.textContent = '请填写设备 IP、配对端口和配对码';
+      return;
+    }
+    els.btnDoPair.disabled = true;
+    els.pairOutput.textContent = '配对中…';
+    try {
+      var result = await callTool('android_panel', { action: 'pair', host: host, port: port, code: code }, 30000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '配对失败');
+      els.pairOutput.textContent = '配对成功。下一步用「IP 直连」连接。';
+      els.cfgWirelessHost.value = host;
+      refreshState({ quiet: true });
+    } catch (error) {
+      els.pairOutput.textContent = '配对失败：' + (error && error.message ? error.message : String(error));
+    } finally {
+      els.btnDoPair.disabled = false;
+    }
+  }
+
+  async function doConnect() {
+    var host = els.connectHost.value.trim();
+    var port = Number(els.connectPort.value);
+    if (!host || !port) {
+      els.connectOutput.textContent = '请填写设备 IP 和连接端口';
+      return;
+    }
+    els.btnDoConnect.disabled = true;
+    els.connectOutput.textContent = '连接中…';
+    try {
+      var result = await callTool('android_panel', { action: 'connect', host: host, port: port }, 30000);
+      var payload = toolJson(result);
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || toolText(result) || '连接失败');
+      els.connectOutput.textContent = '已连接 ' + host + ':' + port;
+      els.cfgWirelessHost.value = host;
+      els.cfgWirelessPort.value = String(port);
+      refreshState({ quiet: false });
+    } catch (error) {
+      els.connectOutput.textContent = '连接失败：' + (error && error.message ? error.message : String(error));
+    } finally {
+      els.btnDoConnect.disabled = false;
+    }
+  }
+
   function stopLogcatTimer() {
     if (state.logcatTimer) { clearInterval(state.logcatTimer); state.logcatTimer = null; }
   }
@@ -834,7 +1032,7 @@
 
   function switchTab(tab) {
     state.activeTab = tab;
-    var panes = { device: els.paneDevice, logcat: els.paneLogcat, perf: els.panePerf, aab: els.paneAab };
+    var panes = { device: els.paneDevice, logcat: els.paneLogcat, perf: els.panePerf, aab: els.paneAab, settings: els.paneSettings };
     Object.keys(panes).forEach(function (key) {
       if (panes[key]) panes[key].hidden = key !== tab;
     });
@@ -849,6 +1047,9 @@
     }
     if (tab === 'perf') {
       refreshPerf();
+    }
+    if (tab === 'settings') {
+      loadSettings();
     }
   }
 
@@ -1165,21 +1366,23 @@
     stopLogcatTimer();
     stopPerfTimer();
     state.dragging = null;
-    if (els.settingsOverlay) els.settingsOverlay.hidden = true;
+    if (els.wirelessOverlay) els.wirelessOverlay.hidden = true;
+    stopQrTimer();
     pending.forEach(function (waiter) { waiter.reject(new Error('面板已关闭')); });
     pending.clear();
   }
 
   function bind() {
-    els.btnSettings.addEventListener('click', function () {
-      openSettings();
-    });
-    els.btnSettingsClose.addEventListener('click', function () {
-      closeSettings();
-    });
     els.btnSettingsSave.addEventListener('click', function () {
       saveSettings();
     });
+    els.btnQrPair.addEventListener('click', function () { openWireless('qr'); });
+    els.btnPairCode.addEventListener('click', function () { openWireless('pair'); });
+    els.btnIpConnect.addEventListener('click', function () { openWireless('connect'); });
+    els.btnWirelessClose.addEventListener('click', closeWireless);
+    els.btnQrAgain.addEventListener('click', startQrPairing);
+    els.btnDoPair.addEventListener('click', doPair);
+    els.btnDoConnect.addEventListener('click', doConnect);
     Array.prototype.forEach.call(els.tabBar.querySelectorAll('button[data-tab]'), function (button) {
       button.addEventListener('click', function () {
         switchTab(button.getAttribute('data-tab'));
